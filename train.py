@@ -92,6 +92,7 @@ print(f"\nStarting training from step {start_step} to {EPOCHS}...\n")
 for step in range(start_step, EPOCHS):
     x, y = get_batch('train')
     logits, loss = model(x, y)
+    loss = loss.mean()  # DataParallel returns loss per GPU, need to average
 
     optimizer.zero_grad()
     loss.backward()
