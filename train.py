@@ -45,6 +45,11 @@ def get_batch(split):
 
 # ── Model ─────────────────────────────────────────
 model = Sainyx(vocab_size=vocab_size).to(device)
+
+# Use both GPUs if available
+if torch.cuda.device_count() > 1:
+    print(f"🔥 Using {torch.cuda.device_count()} GPUs!")
+    model = torch.nn.DataParallel(model)
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
 # ── Checkpoint paths ──────────────────────────────
