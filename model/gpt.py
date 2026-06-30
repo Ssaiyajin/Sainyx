@@ -4,8 +4,8 @@ import torch.nn.functional as F
 
 # ── Hyperparameters ──────────────────────────────
 VOCAB_SIZE  = 677    # unique characters
-BLOCK_SIZE  = 32     # context length
-N_EMBED     = 128   # embedding dimensions
+BLOCK_SIZE  = 128    # context length
+N_EMBED     = 256   # embedding dimensions
 N_HEADS     = 8     # attention heads
 N_LAYERS    = 6     # transformer blocks
 DROPOUT     = 0.1

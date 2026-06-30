@@ -34,7 +34,7 @@ print(f"Train size: {len(train_data):,} tokens")
 print(f"Val size:   {len(val_data):,} tokens")
 
 # ── Batch Loader ──────────────────────────────────
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 
 def get_batch(split):
     data = train_data if split == 'train' else val_data
@@ -69,7 +69,7 @@ print(f"Sainyx model loaded")
 print(f"Total parameters: {total_params:,}")
 
 # ── Training Loop ─────────────────────────────────
-EPOCHS = 40000
+EPOCHS = 100000
 EVAL_EVERY = 2000
 SAVE_EVERY = 1000   # save checkpoint every 1000 steps
 
