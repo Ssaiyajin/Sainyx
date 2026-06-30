@@ -70,7 +70,7 @@ print(f"Total parameters: {total_params:,}")
 
 # ── Training Loop ─────────────────────────────────
 EPOCHS = 100000
-EVAL_EVERY = 2000
+EVAL_EVERY = 5000
 SAVE_EVERY = 1000   # save checkpoint every 1000 steps
 
 print(f"\nStarting training from step {start_step} to {EPOCHS}...\n")

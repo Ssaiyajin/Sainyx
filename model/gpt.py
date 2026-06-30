@@ -90,7 +90,7 @@ class Sainyx(nn.Module):
     def forward(self, idx, targets=None):
         B, T = idx.shape
         tok_emb = self.token_embedding(idx)
-        pos_emb = self.position_embedding(torch.arange(T))
+        pos_emb = self.position_embedding(torch.arange(T, device=idx.device))
         x = tok_emb + pos_emb
         x = self.blocks(x)
         x = self.ln_final(x)
