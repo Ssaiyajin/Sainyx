@@ -62,7 +62,16 @@ start_step = 0
 if os.path.exists(CHECKPOINT_PATH):
     print(f"\n🔄 Found checkpoint — resuming training...")
     checkpoint = torch.load(CHECKPOINT_PATH, map_location=device)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    state_dict = checkpoint['model_state_dict']
+    # handle DataParallel prefix mismatch
+    if torch.cuda.device_count() > 1:
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            new_state_dict['module.' + k] = v
+        model.load_state_dict(new_state_dict)
+    else:
+        model.load_state_dict(state_dict)
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     start_step = checkpoint['step']
     print(f"✅ Resumed from step {start_step}, last loss: {checkpoint['loss']:.4f}\n")
