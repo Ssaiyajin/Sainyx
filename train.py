@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 from model.gpt import Sainyx, BLOCK_SIZE, VOCAB_SIZE
 
 # ── Device ───────────────────────────────────────
@@ -16,9 +17,7 @@ print(f"Dataset size: {len(text):,} characters")
 chars = sorted(list(set(text)))
 vocab_size = len(chars)
 print(f"Vocabulary: {vocab_size} unique characters")
-print(f"Characters: {''.join(chars)}")
 
-# character to integer
 stoi = { ch:i for i,ch in enumerate(chars) }
 itos = { i:ch for i,ch in enumerate(chars) }
 
@@ -46,20 +45,37 @@ def get_batch(split):
 
 # ── Model ─────────────────────────────────────────
 model = Sainyx(vocab_size=vocab_size).to(device)
-total_params = sum(p.numel() for p in model.parameters())
-print(f"\nSainyx model loaded")
-print(f"Total parameters: {total_params:,}")
-
-# ── Optimizer ─────────────────────────────────────
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
+# ── Checkpoint paths ──────────────────────────────
+CHECKPOINT_PATH = 'checkpoints/sainyx_checkpoint.pt'
+os.makedirs('checkpoints', exist_ok=True)
+
+start_step = 0
+
+# ── Resume from checkpoint if it exists ───────────
+if os.path.exists(CHECKPOINT_PATH):
+    print(f"\n🔄 Found checkpoint — resuming training...")
+    checkpoint = torch.load(CHECKPOINT_PATH, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    start_step = checkpoint['step']
+    print(f"✅ Resumed from step {start_step}, last loss: {checkpoint['loss']:.4f}\n")
+else:
+    print("\n🆕 No checkpoint found — starting fresh\n")
+
+total_params = sum(p.numel() for p in model.parameters())
+print(f"Sainyx model loaded")
+print(f"Total parameters: {total_params:,}")
+
 # ── Training Loop ─────────────────────────────────
-EPOCHS = 10000
-EVAL_EVERY = 1000
+EPOCHS = 40000
+EVAL_EVERY = 2000
+SAVE_EVERY = 1000   # save checkpoint every 1000 steps
 
-print(f"\nStarting training for {EPOCHS} steps...\n")
+print(f"\nStarting training from step {start_step} to {EPOCHS}...\n")
 
-for step in range(EPOCHS):
+for step in range(start_step, EPOCHS):
     x, y = get_batch('train')
     logits, loss = model(x, y)
 
@@ -70,11 +86,25 @@ for step in range(EPOCHS):
     if step % EVAL_EVERY == 0:
         print(f"Step {step:>5} | Loss: {loss.item():.4f}")
 
+    # save checkpoint periodically
+    if step % SAVE_EVERY == 0 and step > start_step:
+        torch.save({
+            'step': step,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss.item(),
+        }, CHECKPOINT_PATH)
+
 print("\nTraining complete!")
 
-# ── Save Model ────────────────────────────────────
+# ── Save Final Model ──────────────────────────────
 torch.save(model.state_dict(), 'sainyx_v1.pt')
 print("Model saved to sainyx_v1.pt")
+
+# remove checkpoint since training finished
+if os.path.exists(CHECKPOINT_PATH):
+    os.remove(CHECKPOINT_PATH)
+    print("Checkpoint cleared (training finished cleanly)")
 
 # ── Generate Text ─────────────────────────────────
 print("\n── Sainyx says: ──────────────────────────")

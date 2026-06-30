@@ -1,32 +1,32 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-.Python
 *.egg-info/
-dist/
-build/
 
 # Virtual environment
 venv/
+.venv/
 env/
 .env
 
-# Jupyter
-.ipynb_checkpoints/
-
-# Model weights (too large for GitHub)
+# Model weights
 *.pt
 *.pth
 *.bin
 *.ckpt
+*.safetensors
 
 # Data
 data/
 *.csv
-*.json
 *.txt
+
+# Outputs
+outputs/
+generated/
+*.png
+*.jpg
+*.mp4
 
 # VS Code
 .vscode/
@@ -34,3 +34,13 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Secrets
+secrets.py
+config.py
+kaggle.json
+
+checkpoints/
