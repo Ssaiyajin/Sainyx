@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # ── Hyperparameters ──────────────────────────────
-VOCAB_SIZE  = 677    # unique characters
+VOCAB_SIZE  = 678    # unique characters
 BLOCK_SIZE  = 128    # context length
 N_EMBED     = 256   # embedding dimensions
 N_HEADS     = 8     # attention heads
