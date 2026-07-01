@@ -124,5 +124,7 @@ if os.path.exists(CHECKPOINT_PATH):
 # ── Generate Text ─────────────────────────────────
 print("\n── Sainyx says: ──────────────────────────")
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-generated = model.generate(context, max_new_tokens=300)
+# access underlying model from DataParallel wrapper
+raw_model = model.module if hasattr(model, 'module') else model
+generated = raw_model.generate(context, max_new_tokens=300)
 print(decode(generated[0].tolist()))
