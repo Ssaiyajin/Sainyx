@@ -16,18 +16,19 @@ itos = { i:ch for i,ch in enumerate(chars) }
 encode = lambda s: [stoi.get(c, 0) for c in s]
 decode = lambda l: ''.join([itos[i] for i in l])
 
-# ── Load model ─────────────────────────────────────
+# ── Load model + vocab together ───────────────────
 device = 'cpu'
-state_dict = torch.load('sainyx_v2.pt', map_location=device)
+checkpoint = torch.load('sainyx_v2_full.pt', map_location=device)
 
-if list(state_dict.keys())[0].startswith('module.'):
-    from collections import OrderedDict
-    new_state_dict = OrderedDict()
-    for k, v in state_dict.items():
-        new_state_dict[k[7:]] = v
-    state_dict = new_state_dict
+chars = checkpoint['chars']
+stoi  = checkpoint['stoi']
+itos  = {int(k) if isinstance(k, str) else k: v for k, v in checkpoint['itos'].items()}
 
-vocab_size = state_dict['token_embedding.weight'].shape[0]
+encode = lambda s: [stoi.get(c, 0) for c in s]
+decode = lambda l: ''.join([itos.get(i, '?') for i in l])
+
+state_dict = checkpoint['model_state_dict']
+vocab_size  = state_dict['token_embedding.weight'].shape[0]
 model = Sainyx(vocab_size=vocab_size).to(device)
 model.load_state_dict(state_dict)
 model.eval()
