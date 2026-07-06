@@ -45,13 +45,16 @@ def chat():
     if not user_input:
         return jsonify({'response': '...'})
     
-    context = torch.tensor(encode(user_input), dtype=torch.long).unsqueeze(0).to(device)
+    # wrap in Q&A format so model knows to answer
+    prompt = f"Question: {user_input}\nAnswer:"
+    context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
     
     with torch.no_grad():
         output = model.generate(context, max_new_tokens=200)
     
     response = decode(output[0].tolist())
-    response = response[len(user_input):]
+    # strip the prompt, return only the answer
+    response = response[len(prompt):]
     
     return jsonify({'response': response})
 

@@ -103,11 +103,63 @@ Question: What is Tekken?
 Answer: Tekken is a 3D fighting game franchise by Bandai Namco. It features the Mishima family feud as its central story and is one of the longest running fighting game series.
 """
 
-# ── Merge and save ────────────────────────────────
-all_qa = dragonball_qa + anime_qa + gaming_qa
+# ── Extended Q&A ──────────────────────────────────
+extended_qa = """
+Question: Who is Goku?
+Answer: Goku is a pure-blooded Saiyan warrior and the main protagonist of Dragon Ball Z. Born as Kakarot, he was sent to Earth as a baby and raised by Grandpa Gohan. He is known for his incredible fighting spirit and kind heart.
 
-# repeat it multiple times so model sees the pattern often
-all_qa = all_qa * 10
+Question: What is Dragon Ball Z about?
+Answer: Dragon Ball Z follows Goku and his friends as they defend Earth against powerful villains including Saiyans, Frieza, Cell, and Majin Buu. It focuses on intense battles and the characters growing stronger through training.
+
+Question: What is One Piece about?
+Answer: One Piece follows Monkey D. Luffy and his pirate crew as they sail the Grand Line searching for the legendary treasure called the One Piece. Luffy dreams of becoming King of the Pirates.
+
+Question: Who is Monkey D. Luffy?
+Answer: Luffy is the captain of the Straw Hat Pirates and the main protagonist of One Piece. He ate the Gum-Gum Devil Fruit which gave his body rubber properties. He is energetic, fearless, and deeply loyal to his crew.
+
+Question: Who is Naruto Uzumaki?
+Answer: Naruto is the main protagonist of the Naruto series. He is a ninja from the Hidden Leaf Village who carries the Nine-Tails fox demon within him. He dreams of becoming Hokage and works hard to earn the respect of his village.
+
+Question: Who is Sasuke Uchiha?
+Answer: Sasuke is Naruto's rival and teammate from Team 7. He is the last surviving member of the Uchiha clan after his brother Itachi massacred their family. He seeks revenge and possesses the powerful Sharingan eye technique.
+
+Question: What is Attack on Titan about?
+Answer: Attack on Titan is set in a world where humanity lives behind massive walls to protect themselves from Titans. The story follows Eren Yeager who joins the military after watching a Titan eat his mother.
+
+Question: Who is Eren Yeager?
+Answer: Eren Yeager is the main protagonist of Attack on Titan. He joins the Survey Corps after his mother is killed by a Titan. He later discovers he can transform into a Titan himself and uncovers dark secrets about the world.
+
+Question: What is My Hero Academia about?
+Answer: My Hero Academia is set in a world where most of the population has superpowers called Quirks. It follows Izuku Midoriya, a boy born without powers, who inherits the legendary One For All ability from the greatest hero All Might.
+
+Question: What is Demon Slayer about?
+Answer: Demon Slayer follows Tanjiro Kamado who becomes a demon slayer after demons kill his family and turn his sister Nezuko into a demon. He trains to become stronger and find a cure to turn his sister back into a human.
+
+Question: What is Bleach about?
+Answer: Bleach follows Ichigo Kurosaki, a teenager who gains the powers of a Soul Reaper and must protect the living world from evil spirits called Hollows. He later discovers deeper mysteries about the Soul Society.
+
+Question: What is Jujutsu Kaisen about?
+Answer: Jujutsu Kaisen follows Yuji Itadori who swallows a cursed finger belonging to the King of Curses Ryomen Sukuna. He enrolls in a secret school for Jujutsu Sorcerers to exorcise cursed spirits.
+
+Question: Who is Scorpion in Mortal Kombat?
+Answer: Scorpion is one of the most iconic characters in Mortal Kombat. He is a resurrected ninja specter seeking vengeance for his death and the destruction of his clan. His signature move is throwing a spear and yelling Get Over Here.
+
+Question: What is Ultra Instinct?
+Answer: Ultra Instinct is a godly transformation that allows the user to move and react without conscious thought. Goku achieved this during the Tournament of Power against Jiren. The body moves independently to dodge and attack automatically.
+
+Question: What is the Kamehameha?
+Answer: The Kamehameha is Goku's signature energy attack in Dragon Ball Z. It is a powerful beam of ki energy originally created by Master Roshi. Goku mastered it as a child and uses it in nearly every major battle.
+
+Question: Who is Cell in Dragon Ball Z?
+Answer: Cell is a bio-android created by Dr. Gero designed to absorb Androids 17 and 18 to reach his perfect form. In his perfect form he hosts the Cell Games tournament and is one of the most powerful villains in Dragon Ball Z.
+
+Question: Who is Majin Buu?
+Answer: Majin Buu is a magical being of pure destruction released by the wizard Babidi. He exists in multiple forms from the childlike Fat Buu to the terrifying Kid Buu. He can absorb other fighters and copy their powers.
+"""
+
+# ── Merge and save ────────────────────────────────
+all_qa = dragonball_qa + anime_qa + gaming_qa + extended_qa
+all_qa = all_qa * 15
 
 with open('data/qa_pairs.txt', 'w', encoding='utf-8') as f:
     f.write(all_qa)
