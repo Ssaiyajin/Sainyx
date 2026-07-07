@@ -1,9 +1,11 @@
 
 import torch
 import os
+import io
 from model.gpt import Sainyx, BLOCK_SIZE
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from data_analysis.analyzer import analyze_csv, generate_charts, summarize
+from data_analysis.pdf_export import generate_pdf
 
 app = Flask(__name__)
 
@@ -90,7 +92,24 @@ def analyze():
     return jsonify({
         'summary': summary,
         'report': report,
-        'charts': charts
+        'charts':  [{'title': t, 'data': d} for t, d in charts]
     })
+
+@app.route('/download-pdf', methods=['POST'])
+def download_pdf():
+    data = request.json
+    pdf_bytes = generate_pdf(
+        data['report'],
+        data['summary'],
+        data['charts']
+    )
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name='sainyx_report.pdf'
+    )
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
