@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sainyx — Data Analysis</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #0a0a1a;
+            background: #030308;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            margin-left: auto;
+            display: flex;
+            gap: 16px;
+        }
+
+        .nav-links a {
+            font-size: 12px;
+            color: #444;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: #00ff88; }
+        .nav-links a.active { color: #00ff88; }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .page-title {
+            text-align: center;
+        }
+
+        .page-title h1 {
+            font-size: 28px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .page-title p {
+            font-size: 13px;
+            color: #333;
+        }
+
+        /* Upload zone */
+        #upload-zone {
+            border: 1px dashed #1a1a2e;
+            border-radius: 16px;
+            padding: 48px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #050510;
+        }
+
+        #upload-zone:hover {
+            border-color: #00ff8844;
+            background: #05051a;
+        }
+
+        #upload-zone.dragging {
+            border-color: #00ff88;
+            background: #00ff8808;
+        }
+
+        #upload-zone .icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        #upload-zone h3 {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        #upload-zone p {
+            font-size: 12px;
+            color: #333;
+        }
+
+        #file-input { display: none; }
+
+        #upload-btn {
+            margin-top: 16px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #00ff88, #00aaff);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #000;
+            transition: opacity 0.2s;
+        }
+
+        #upload-btn:hover { opacity: 0.85; }
+
+        /* Loading */
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .hud-loader {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 1px solid #00ff8844;
+            border-top: 2px solid #00ff88;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #loading p {
+            font-size: 12px;
+            color: #444;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+        }
+
+        /* Results */
+        #results { display: none; flex-direction: column; gap: 20px; }
+
+        .card {
+            background: #050510;
+            border: 1px solid #0a0a20;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h3 {
+            font-size: 11px;
+            color: #00ff88;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Summary */
+        #summary-text {
+            font-size: 14px;
+            color: #b0b0b0;
+            line-height: 1.7;
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: #0a0a1a;
+            border: 1px solid #111;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .stat-box .label {
+            font-size: 10px;
+            color: #444;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .stat-box .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #00ff88;
+        }
+
+        /* Columns table */
+        .col-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .col-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: #444;
+            font-size: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #0a0a20;
+            font-family: 'Courier New', monospace;
+        }
+
+        .col-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #05050f;
+            color: #888;
+        }
+
+        .col-table td:first-child { color: #e0e0e0; }
+
+        .missing-yes { color: #ff4444 !important; }
+        .missing-no  { color: #00ff88 !important; }
+
+        /* Charts */
+        #charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 16px;
+        }
+
+        .chart-box {
+            background: #0a0a1a;
+            border: 1px solid #111;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .chart-box img {
+            width: 100%;
+            display: block;
+        }
+
+        /* Reset */
+        #reset-btn {
+            padding: 10px 24px;
+            background: transparent;
+            border: 1px solid #1a1a2e;
+            border-radius: 8px;
+            color: #444;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            align-self: center;
+        }
+
+        #reset-btn:hover { border-color: #00ff8844; color: #00ff88; }
+    </style>
+</head>
+<body>
+
+<header>
+    <a href="/" class="logo">SAINYX</a>
+    <div class="nav-links">
+        <a href="/">Chat</a>
+        <a href="/data" class="active">Data Analysis</a>
+    </div>
+</header>
+
+<div class="container">
+
+    <div class="page-title">
+        <h1>📊 Data Analysis</h1>
+        <p>Upload a CSV file — Sainyx will analyze it instantly.</p>
+    </div>
+
+    <!-- Upload -->
+    <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="icon">📁</div>
+        <h3>Drop your CSV here</h3>
+        <p>or click to browse</p>
+        <button id="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+            Choose File
+        </button>
+        <input type="file" id="file-input" accept=".csv" onchange="handleFile(this.files[0])">
+    </div>
+
+    <!-- Loading -->
+    <div id="loading">
+        <div class="hud-loader"></div>
+        <p>ANALYZING DATA...</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+
+        <!-- Summary -->
+        <div class="card">
+            <h3>⚡ Sainyx Summary</h3>
+            <div id="summary-text"></div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="card">
+            <h3>📈 Overview</h3>
+            <div class="stats-grid" id="stats-grid"></div>
+        </div>
+
+        <!-- Columns -->
+        <div class="card">
+            <h3>🔍 Column Analysis</h3>
+            <table class="col-table">
+                <thead>
+                    <tr>
+                        <th>Column</th>
+                        <th>Type</th>
+                        <th>Missing</th>
+                    </tr>
+                </thead>
+                <tbody id="col-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Charts -->
+        <div class="card" id="charts-card">
+            <h3>📉 Visualizations</h3>
+            <div id="charts-grid"></div>
+        </div>
+
+        <button id="reset-btn" onclick="reset()">↩ Analyze Another File</button>
+    </div>
+
+</div>
+
+<script>
+    // drag and drop
+    const zone = document.getElementById('upload-zone');
+
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('dragging');
+    });
+
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragging');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+    });
+
+    async function handleFile(file) {
+        if (!file || !file.name.endsWith('.csv')) {
+            alert('Please upload a CSV file.');
+            return;
+        }
+
+        // show loading
+        document.getElementById('upload-zone').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/analyze', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        document.getElementById('loading').style.display = 'none';
+        renderResults(data);
+    }
+
+    function renderResults(data) {
+        // summary
+        document.getElementById('summary-text').textContent = data.summary;
+
+        // stats grid
+        const statsGrid = document.getElementById('stats-grid');
+        statsGrid.innerHTML = `
+            <div class="stat-box">
+                <div class="label">Rows</div>
+                <div class="value">${data.report.rows.toLocaleString()}</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Columns</div>
+                <div class="value">${data.report.columns}</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Missing Values</div>
+                <div class="value" style="color: ${Object.values(data.report.missing).some(v => v > 0) ? '#ff4444' : '#00ff88'}">
+                    ${Object.values(data.report.missing).reduce((a, b) => a + b, 0)}
+                </div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Numeric Cols</div>
+                <div class="value">${Object.values(data.report.dtypes).filter(t => t.includes('int') || t.includes('float')).length}</div>
+            </div>
+        `;
+
+        // column table
+        const tbody = document.getElementById('col-table-body');
+        tbody.innerHTML = '';
+        data.report.col_names.forEach(col => {
+            const missing = data.report.missing[col] || 0;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${col}</td>
+                <td>${data.report.dtypes[col]}</td>
+                <td class="${missing > 0 ? 'missing-yes' : 'missing-no'}">${missing > 0 ? missing + ' missing' : '✓ complete'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // charts
+        const chartsGrid = document.getElementById('charts-grid');
+        chartsGrid.innerHTML = '';
+        if (data.charts && data.charts.length > 0) {
+            data.charts.forEach(chart => {
+                const box = document.createElement('div');
+                box.className = 'chart-box';
+                box.innerHTML = `<img src="data:image/png;base64,${chart}" alt="chart">`;
+                chartsGrid.appendChild(box);
+            });
+            document.getElementById('charts-card').style.display = 'block';
+        } else {
+            document.getElementById('charts-card').style.display = 'none';
+        }
+
+        document.getElementById('results').style.display = 'flex';
+    }
+
+    function reset() {
+        document.getElementById('upload-zone').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('file-input').value = '';
+    }
+</script>
+</body>
+</html>

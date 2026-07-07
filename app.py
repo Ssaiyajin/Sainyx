@@ -1,6 +1,9 @@
-from flask import Flask, render_template, request, jsonify
+
 import torch
+import os
 from model.gpt import Sainyx, BLOCK_SIZE
+from flask import Flask, render_template, request, jsonify
+from data_analysis.analyzer import analyze_csv, generate_charts, summarize
 
 app = Flask(__name__)
 
@@ -50,7 +53,7 @@ def chat():
     context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
     
     with torch.no_grad():
-        output = model.generate(context, max_new_tokens=200)
+        output = model.generate(context, max_new_tokens=80)
     
     response = decode(output[0].tolist())
     # strip the prompt, return only the answer
@@ -58,5 +61,36 @@ def chat():
     
     return jsonify({'response': response})
 
+@app.route('/data')
+def data():
+    return render_template('data.html')
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'})
+    
+    file = request.files['file']
+    if not file.filename.endswith('.csv'):
+        return jsonify({'error': 'Only CSV files supported'})
+    
+    # save temporarily
+    os.makedirs('uploads', exist_ok=True)
+    filepath = f"uploads/{file.filename}"
+    file.save(filepath)
+    
+    # analyze
+    df, report = analyze_csv(filepath)
+    charts = generate_charts(df)
+    summary = summarize(report)
+    
+    # cleanup
+    os.remove(filepath)
+    
+    return jsonify({
+        'summary': summary,
+        'report': report,
+        'charts': charts
+    })
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

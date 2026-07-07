@@ -44,3 +44,4 @@ config.py
 kaggle.json
 
 checkpoints/
+uploads/
