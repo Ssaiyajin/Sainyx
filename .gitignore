@@ -19,7 +19,7 @@ env/
 # Data
 data/
 *.csv
-*.txt
+
 
 # Outputs
 outputs/
