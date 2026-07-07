@@ -1,45 +1,61 @@
-# Sainyx
-Sainyx is an interactive self-learning machine learning system with feedback-driven continual training and batch retraining via local execution and Kaggle-based GPU acceleration.
+---
+title: Sainyx
+emoji: ⚡
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_file: app.py
+pinned: false
+---
+
+# Sainyx 🔥
+
 An open-source AI platform built from scratch by ssaiyajin.
-Language • Image • Video • Data Science — all in one
+Language • Data Analysis • Image • Video — all in one, all free.
+
+## Live Demo
+👉 [Try Sainyx on Hugging Face](https://huggingface.co/spaces/ssaiyajin/Sainyx)
 
 ## Vision
 Sainyx is not just a chatbot. It's a full AI platform:
 - 🧠 LLM built from scratch (PyTorch)
-- 🎨 Image generation (Stable Diffusion)
-- 🎬 Video generation (ModelScope)
-- 📊 Data science gateway (Pandas, Matplotlib)
-- 🌐 REST API for developers
-- 💬 Interactive chat interface
+- 📊 Data science gateway (Pandas, Matplotlib, PDF reports)
+- 🎨 Image generation (Stable Diffusion) — coming soon
+- 🎬 Video generation (ModelScope) — coming soon
+- 🌐 REST API for developers — coming soon
 
-
-## Roadmap
-- [x] Project setup
-- [ ] Tokenizer
-- [ ] Transformer architecture
-- [ ] Training loop
-- [ ] Scale on Kaggle
-- [ ] Deploy
+## Current Status
+- ✅ GPT transformer built from scratch (5M parameters)
+- ✅ Trained on custom anime/gaming/DBZ dataset (1.5M characters)
+- ✅ Jarvis HUD + MUI aura animation UI
+- ✅ Data analysis module with 5 chart types
+- ✅ PDF report export
+- ✅ Deployed on Hugging Face
+- 🔲 Image generation module
+- 🔲 Video generation module
+- 🔲 REST API
 
 ## Stack
-- Python
-- PyTorch
+All free. No paid APIs. Ever.
 
-## Run locally
+| Module | Tech |
+|---|---|
+| LLM | PyTorch |
+| Data Analysis | Pandas, Matplotlib |
+| PDF Export | ReportLab |
+| UI | Flask + HTML |
+| Deploy | Hugging Face Spaces |
+| Training | Kaggle Free GPU |
+
+## Run Locally
 ```bash
-git clone https://github.com/YOUR_USERNAME/Sainyx.git
+git clone https://github.com/Ssaiyajin/Sainyx.git
 cd Sainyx
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-python train.py
-python chat.py
+python app.py
 ```
 
-## Author ✨
-
-**Nihar Sawant** – DevOps & Software Engineer, interested in **automation, cloud, and machine learning**.
-
-
-## Live Demo
-👉 [Try Sainyx on Hugging Face](https://huggingface.co/spaces/ssaiyajin/Sainyx)
+## Author
+Built by ssaiyajin — learning in public, scaling in silence. ⚡
