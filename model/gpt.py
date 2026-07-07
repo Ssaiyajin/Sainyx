@@ -3,11 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # ── Hyperparameters ──────────────────────────────
-VOCAB_SIZE  = 677    # unique characters
-BLOCK_SIZE  = 32     # context length
-N_EMBED     = 64    # embedding dimensions
-N_HEADS     = 4     # attention heads
-N_LAYERS    = 4     # transformer blocks
+VOCAB_SIZE  = 678    # unique characters
+BLOCK_SIZE  = 128    # context length
+N_EMBED     = 256   # embedding dimensions
+N_HEADS     = 8     # attention heads
+N_LAYERS    = 6     # transformer blocks
 DROPOUT     = 0.1
 # ─────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ class Sainyx(nn.Module):
     def forward(self, idx, targets=None):
         B, T = idx.shape
         tok_emb = self.token_embedding(idx)
-        pos_emb = self.position_embedding(torch.arange(T))
+        pos_emb = self.position_embedding(torch.arange(T, device=idx.device))
         x = tok_emb + pos_emb
         x = self.blocks(x)
         x = self.ln_final(x)

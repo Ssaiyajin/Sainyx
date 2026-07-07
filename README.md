@@ -39,3 +39,7 @@ python chat.py
 ## Author ✨
 
 **Nihar Sawant** – DevOps & Software Engineer, interested in **automation, cloud, and machine learning**.
+
+
+## Live Demo
+👉 [Try Sainyx on Hugging Face](https://huggingface.co/spaces/ssaiyajin/Sainyx)

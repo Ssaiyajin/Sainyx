@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sainyx</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* ── BOOT ── */
+        #boot {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            gap: 24px;
+        }
+
+        #boot-logo {
+            font-size: 64px;
+            font-weight: 900;
+            letter-spacing: 12px;
+            background: linear-gradient(90deg, #00ff88, #00aaff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.8s ease;
+        }
+
+        #boot-logo.show { opacity: 1; transform: scale(1); }
+
+        #boot-lines {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #00ff88;
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .boot-line {
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: all 0.3s ease;
+            display: flex;
+            gap: 8px;
+        }
+
+        .boot-line.show { opacity: 1; transform: translateX(0); }
+        .boot-line .tag { color: #00aaff; }
+        .boot-line .ok  { color: #00ff88; margin-left: auto; }
+
+        #boot-bar-wrap {
+            width: 400px; height: 2px;
+            background: #111;
+            border-radius: 2px;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #boot-bar {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            transition: width 0.3s linear;
+        }
+
+        #boot-ready {
+            font-size: 13px; color: #444;
+            letter-spacing: 3px;
+            opacity: 0; transition: opacity 0.5s;
+        }
+
+        /* ── AURA CONTAINER ── */
+        #aura-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 500;
+            opacity: 0;
+            transition: opacity 0.4s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #aura-container.active { opacity: 1; }
+
+        /* ── MUI AURA BACKGROUND ── */
+        #goku-aura {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #aura-core-glow {
+            position: absolute;
+            width: 400px;
+            height: 600px;
+            background: radial-gradient(ellipse 50% 70% at 50% 50%,
+                #ffffff55 0%,
+                #aa66ff33 30%,
+                #6633ff22 55%,
+                transparent 75%
+            );
+            filter: blur(15px);
+            animation: coreGlow 0.9s ease-in-out infinite alternate;
+        }
+
+        @keyframes coreGlow {
+            0%   { transform: scaleY(0.93) scaleX(0.95); opacity: 0.7; }
+            100% { transform: scaleY(1.07) scaleX(1.05); opacity: 1; }
+        }
+
+        #aura-outer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse 55% 75% at 50% 55%,
+                transparent 20%,
+                #6600ff0a 40%,
+                #4400cc11 55%,
+                #2200880a 65%,
+                transparent 80%
+            );
+            filter: blur(20px);
+            animation: outerPulse 1.4s ease-in-out infinite alternate;
+        }
+
+        @keyframes outerPulse {
+            0%   { opacity: 0.5; transform: scale(0.96); }
+            100% { opacity: 1;   transform: scale(1.04); }
+        }
+
+        .mui-wisp {
+            position: absolute;
+            border-radius: 50% 50% 30% 30%;
+            filter: blur(5px);
+            transform-origin: bottom center;
+            bottom: 5%;
+        }
+
+        .mui-wisp:nth-child(1) {
+            width: 30px; height: 200px; left: 38%;
+            background: linear-gradient(180deg, transparent, #ffffff88, #aa44ff55);
+            animation: muiFlame 0.8s ease-in-out infinite alternate;
+            animation-delay: 0s;
+        }
+        .mui-wisp:nth-child(1) { width: 30px; height: 200px; left: 46%; }
+        .mui-wisp:nth-child(2) { width: 60px; height: 300px; left: 43%; }
+        .mui-wisp:nth-child(3) { width: 35px; height: 230px; left: 50%; }
+        .mui-wisp:nth-child(4) { width: 25px; height: 160px; left: 38%; }
+        .mui-wisp:nth-child(5) { width: 25px; height: 180px; left: 55%; }
+        .mui-wisp:nth-child(6) { width: 20px; height: 140px; left: 33%; }
+        .mui-wisp:nth-child(7) { width: 20px; height: 150px; left: 60%; }
+
+        @keyframes muiFlame {
+            0%   { transform: skewX(-10deg) scaleY(0.8)  scaleX(0.9); opacity: 0.5; }
+            100% { transform: skewX(10deg)  scaleY(1.2)  scaleX(1.1); opacity: 1; }
+        }
+
+        .energy-streak {
+            position: absolute;
+            height: 2px;
+            border-radius: 2px;
+            filter: blur(1px);
+        }
+
+        .energy-streak:nth-child(1) {
+            width: 120px; left: 5%; top: 35%;
+            background: linear-gradient(90deg, transparent, #8844ff88, transparent);
+            animation: streakRight 1.5s ease-in-out infinite;
+            animation-delay: 0s;
+        }
+        .energy-streak:nth-child(2) {
+            width: 80px; left: 8%; top: 50%;
+            background: linear-gradient(90deg, transparent, #6622ff55, transparent);
+            animation: streakRight 1.8s ease-in-out infinite;
+            animation-delay: 0.3s;
+        }
+        .energy-streak:nth-child(3) {
+            width: 100px; right: 5%; top: 40%;
+            background: linear-gradient(270deg, transparent, #8844ff88, transparent);
+            animation: streakLeft 1.6s ease-in-out infinite;
+            animation-delay: 0.1s;
+        }
+        .energy-streak:nth-child(4) {
+            width: 70px; right: 8%; top: 55%;
+            background: linear-gradient(270deg, transparent, #6622ff55, transparent);
+            animation: streakLeft 2.0s ease-in-out infinite;
+            animation-delay: 0.4s;
+        }
+
+        @keyframes streakRight {
+            0%   { transform: translateX(-20px); opacity: 0; }
+            50%  { opacity: 1; }
+            100% { transform: translateX(20px);  opacity: 0; }
+        }
+
+        @keyframes streakLeft {
+            0%   { transform: translateX(20px);  opacity: 0; }
+            50%  { opacity: 1; }
+            100% { transform: translateX(-20px); opacity: 0; }
+        }
+
+        .shard {
+            position: absolute;
+            background: linear-gradient(135deg, #ffffff44, #8844ff33);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            animation: shardFloat 2s ease-in-out infinite;
+        }
+
+        @keyframes shardFloat {
+            0%   { transform: translate(0,0) rotate(0deg);   opacity: 0; }
+            20%  { opacity: 0.6; }
+            80%  { opacity: 0.4; }
+            100% { transform: translate(var(--sx), var(--sy)) rotate(180deg); opacity: 0; }
+        }
+
+        #aura-ground {
+            position: absolute;
+            bottom: 3%;
+            width: 280px;
+            height: 20px;
+            background: radial-gradient(ellipse, #ffffff44 0%, #8833ff22 50%, transparent 75%);
+            filter: blur(6px);
+            animation: groundPulse 0.9s ease-in-out infinite alternate;
+        }
+
+        @keyframes groundPulse {
+            0%   { transform: scaleX(0.8);  opacity: 0.4; }
+            100% { transform: scaleX(1.2);  opacity: 0.9; }
+        }
+
+        .spark {
+            position: absolute;
+            border-radius: 50%;
+            background: #ffffff;
+            filter: blur(1px);
+        }
+
+        #aura-container.active .spark {
+            animation: sparkFly 0.5s ease-out infinite;
+        }
+
+        @keyframes sparkFly {
+            0%   { transform: translate(0,0) scale(1);          opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+        }
+
+        /* ── JARVIS HUD ── */
+        #jarvis-hud {
+            position: relative;
+            width: 500px;
+            height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .hud-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid transparent;
+        }
+
+        .hud-ring-1 {
+            width: 480px; height: 480px;
+            border-top: 1px solid #00ff8844;
+            border-right: 1px solid #00ff8844;
+            animation: rotateCW 8s linear infinite;
+        }
+        .hud-ring-2 {
+            width: 420px; height: 420px;
+            border-bottom: 1px solid #00aaff55;
+            border-left: 1px solid #00aaff55;
+            animation: rotateCCW 6s linear infinite;
+        }
+        .hud-ring-3 {
+            width: 360px; height: 360px;
+            border-top: 1px solid #00ff8833;
+            border-right: 1px solid #00ff8833;
+            border-bottom: 1px solid #00ff8833;
+            animation: rotateCW 4s linear infinite;
+        }
+        .hud-ring-4 {
+            width: 300px; height: 300px;
+            border-left: 1px solid #00aaff44;
+            border-top: 1px solid #00aaff44;
+            animation: rotateCCW 3s linear infinite;
+        }
+        .hud-ring-5 {
+            width: 240px; height: 240px;
+            border-right: 1px solid #00ff8866;
+            border-bottom: 1px solid #00ff8866;
+            animation: rotateCW 2s linear infinite;
+        }
+        .hud-ring-6 {
+            width: 180px; height: 180px;
+            border-top: 1px solid #00aaff88;
+            border-left: 1px solid #00aaff88;
+            border-right: 1px solid #00aaff88;
+            animation: rotateCCW 1.5s linear infinite;
+        }
+
+        .hud-ring::before {
+            content: '';
+            position: absolute;
+            width: 8px; height: 2px;
+            background: #00ff88;
+            top: 50%; right: -4px;
+            transform: translateY(-50%);
+        }
+
+        .hud-ring::after {
+            content: '';
+            position: absolute;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #00aaff;
+            top: -3px; left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #hud-core {
+            position: relative;
+            width: 120px; height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #hud-core-ring {
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 1px solid #00ff88;
+            animation: corePulse 0.8s ease-in-out infinite alternate;
+        }
+
+        @keyframes corePulse {
+            0%   { box-shadow: 0 0 10px #00ff8844, inset 0 0 10px #00ff8822; transform: scale(0.95); }
+            100% { box-shadow: 0 0 30px #00ff8888, inset 0 0 30px #00ff8844; transform: scale(1.05); }
+        }
+
+        #hud-core-text {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #00ff88;
+            text-align: center;
+            letter-spacing: 1px;
+            animation: textFlicker 2s infinite;
+            z-index: 10;
+        }
+
+        @keyframes textFlicker {
+            0%, 95%, 100% { opacity: 1; }
+            96%            { opacity: 0.2; }
+        }
+
+        #hud-scan {
+            position: absolute;
+            width: 480px; height: 1px;
+            background: linear-gradient(90deg, transparent, #00ff8844, #00ff88, #00ff8844, transparent);
+            animation: scan 3s ease-in-out infinite;
+            top: 50%;
+        }
+
+        @keyframes scan {
+            0%   { transform: translateY(-240px); opacity: 0; }
+            10%  { opacity: 1; }
+            90%  { opacity: 1; }
+            100% { transform: translateY(240px); opacity: 0; }
+        }
+
+        .hud-data {
+            position: absolute;
+            font-family: 'Courier New', monospace;
+            font-size: 9px;
+            color: #00ff8866;
+            letter-spacing: 1px;
+            line-height: 1.8;
+            animation: dataFlicker 3s infinite;
+        }
+
+        .hud-data-1 { top: 20px;    left: 20px; }
+        .hud-data-2 { top: 20px;    right: 20px; text-align: right; }
+        .hud-data-3 { bottom: 20px; left: 20px; }
+        .hud-data-4 { bottom: 20px; right: 20px; text-align: right; }
+
+        @keyframes dataFlicker {
+            0%, 89%, 100% { opacity: 0.6; }
+            90%            { opacity: 0.1; }
+            91%            { opacity: 0.8; }
+        }
+
+        .hud-line { position: absolute; }
+
+        .hud-line-h {
+            width: 480px; height: 1px;
+            background: linear-gradient(90deg, transparent, #00ff8822, transparent);
+            top: 50%;
+        }
+
+        .hud-line-v {
+            width: 1px; height: 480px;
+            background: linear-gradient(180deg, transparent, #00ff8822, transparent);
+            left: 50%;
+        }
+
+        @keyframes rotateCW  { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+        @keyframes rotateCCW { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
+
+        /* ── MAIN UI ── */
+        #main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100vh;
+            opacity: 0;
+            transition: opacity 0.8s;
+        }
+
+        #main.show { opacity: 1; }
+
+        header {
+            width: 100%;
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #0a0a1a;
+            background: #030308;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .version {
+            font-size: 10px; color: #333;
+            border: 1px solid #1a1a2e;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+
+        .status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #444;
+        }
+
+        .status-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: #00ff88;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 4px #00ff88; }
+            50%       { opacity: 0.3; box-shadow: none; }
+        }
+
+        #chat-box {
+            flex: 1;
+            width: 100%;
+            max-width: 780px;
+            overflow-y: auto;
+            padding: 32px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #chat-box::-webkit-scrollbar { width: 3px; }
+        #chat-box::-webkit-scrollbar-thumb { background: #111; border-radius: 2px; }
+
+        .welcome {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .welcome h2 {
+            font-size: 24px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .welcome p { font-size: 13px; color: #333; }
+
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .suggestion {
+            padding: 7px 14px;
+            border: 1px solid #111;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #444;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #050510;
+        }
+
+        .suggestion:hover { border-color: #00ff8844; color: #00ff88; }
+
+        .msg {
+            display: flex;
+            flex-direction: column;
+            max-width: 75%;
+            gap: 4px;
+        }
+
+        .msg.user { align-self: flex-end;   align-items: flex-end; }
+        .msg.bot  { align-self: flex-start; align-items: flex-start; }
+
+        .msg-label {
+            font-size: 10px; color: #333;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .msg-bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .msg.user .msg-bubble {
+            background: #050520;
+            border: 1px solid #00ff8822;
+            border-bottom-right-radius: 4px;
+            color: #d0d0d0;
+        }
+
+        .msg.bot .msg-bubble {
+            background: #080815;
+            border: 1px solid #0a0a20;
+            border-bottom-left-radius: 4px;
+            color: #b0b0b0;
+        }
+
+        .typing {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            background: #080815;
+            border: 1px solid #0a0a20;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            width: fit-content;
+        }
+
+        .typing span {
+            width: 5px; height: 5px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0);   opacity: 0.3; }
+            50%       { transform: translateY(-4px); opacity: 1; }
+        }
+
+        #input-area {
+            width: 100%;
+            max-width: 780px;
+            padding: 12px 20px 24px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 13px 18px;
+            background: #050510;
+            border: 1px solid #0a0a20;
+            border-radius: 12px;
+            color: #e0e0e0;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+            max-height: 120px;
+        }
+
+        #user-input:focus { border-color: #00ff8833; }
+        #user-input::placeholder { color: #222; }
+
+        #send-btn {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, #00ff88, #00aaff);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        #send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+        #send-btn svg { width: 16px; height: 16px; }
+    </style>
+</head>
+<body>
+
+<!-- COMBINED AURA + HUD -->
+<div id="aura-container">
+
+    <!-- MUI Goku aura background -->
+    <div id="goku-aura">
+        <div id="aura-outer"></div>
+        <div id="aura-core-glow"></div>
+        <div id="aura-ground"></div>
+
+        <!-- purple/white flames -->
+        <div class="mui-wisp"></div>
+        <div class="mui-wisp"></div>
+        <div class="mui-wisp"></div>
+        <div class="mui-wisp"></div>
+        <div class="mui-wisp"></div>
+        <div class="mui-wisp"></div>
+        <div class="mui-wisp"></div>
+
+        <!-- side energy streaks -->
+        <div class="energy-streak"></div>
+        <div class="energy-streak"></div>
+        <div class="energy-streak"></div>
+        <div class="energy-streak"></div>
+
+        <!-- sparks + shards injected by JS -->
+        <div id="spark-container"></div>
+    </div>
+
+    <!-- Jarvis HUD on top -->
+    <div id="jarvis-hud">
+        <div class="hud-line hud-line-h"></div>
+        <div class="hud-line hud-line-v"></div>
+        <div class="hud-ring hud-ring-1"></div>
+        <div class="hud-ring hud-ring-2"></div>
+        <div class="hud-ring hud-ring-3"></div>
+        <div class="hud-ring hud-ring-4"></div>
+        <div class="hud-ring hud-ring-5"></div>
+        <div class="hud-ring hud-ring-6"></div>
+        <div id="hud-scan"></div>
+        <div id="hud-core">
+            <div id="hud-core-ring"></div>
+            <div id="hud-core-text">SAINYX<br/>ACTIVE</div>
+        </div>
+        <div class="hud-data hud-data-1">
+            SYS: ONLINE<br/>
+            GPU: T4 x2<br/>
+            PARAMS: 5.1M
+        </div>
+        <div class="hud-data hud-data-2">
+            LOSS: 0.38<br/>
+            TOKEN: GEN<br/>
+            MODEL: v2.0
+        </div>
+        <div class="hud-data hud-data-3">
+            ANIME: LOADED<br/>
+            DBZ: ACTIVE<br/>
+            GAMING: SYNC
+        </div>
+        <div class="hud-data hud-data-4">
+            ATTN: 8 HEAD<br/>
+            LAYERS: 6<br/>
+            CTX: 128
+        </div>
+    </div>
+</div>
+
+<!-- BOOT -->
+<div id="boot">
+    <div id="boot-logo">SAINYX</div>
+    <div id="boot-lines">
+        <div class="boot-line" id="bl1"><span class="tag">[CORE]</span> Loading transformer architecture<span class="ok">OK</span></div>
+        <div class="boot-line" id="bl2"><span class="tag">[DATA]</span> Initializing anime knowledge base<span class="ok">OK</span></div>
+        <div class="boot-line" id="bl3"><span class="tag">[DATA]</span> Loading Dragon Ball universe<span class="ok">OK</span></div>
+        <div class="boot-line" id="bl4"><span class="tag">[DATA]</span> Syncing gaming dataset<span class="ok">OK</span></div>
+        <div class="boot-line" id="bl5"><span class="tag">[GPU]</span> Tesla T4 x2 weights loaded<span class="ok">OK</span></div>
+        <div class="boot-line" id="bl6"><span class="tag">[SYS]</span> Sainyx v2.0 online<span class="ok">READY</span></div>
+    </div>
+    <div id="boot-bar-wrap">
+        <div id="boot-bar"></div>
+    </div>
+    <div id="boot-ready">SYSTEM READY</div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+    <header>
+        <div class="logo">SAINYX</div>
+        <div class="version">v2.0</div>
+        <div class="status">
+            <div class="status-dot"></div>
+            Online
+        </div>
+    </header>
+
+    <div id="chat-box">
+        <div class="welcome">
+            <h2>⚡ Sainyx Online</h2>
+            <p>Built from scratch. Trained on anime, gaming & stories.</p>
+            <div class="suggestions">
+                <div class="suggestion" onclick="sendSuggestion(this)">Who is Goku?</div>
+                <div class="suggestion" onclick="sendSuggestion(this)">Tell me about One Piece</div>
+                <div class="suggestion" onclick="sendSuggestion(this)">What is Elden Ring?</div>
+                <div class="suggestion" onclick="sendSuggestion(this)">Who is Vegeta?</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="input-area">
+        <textarea id="user-input" placeholder="Ask Sainyx anything..." rows="1"></textarea>
+        <button id="send-btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+    // ── BOOT ──────────────────────────────────────
+    const bootLines   = ['bl1','bl2','bl3','bl4','bl5','bl6'];
+    const bootBar     = document.getElementById('boot-bar');
+    const bootBarWrap = document.getElementById('boot-bar-wrap');
+    const bootReady   = document.getElementById('boot-ready');
+    const bootLogo    = document.getElementById('boot-logo');
+    const boot        = document.getElementById('boot');
+    const main        = document.getElementById('main');
+
+    async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    async function runBoot() {
+        await sleep(300);
+        bootLogo.classList.add('show');
+        await sleep(800);
+        bootBarWrap.style.opacity = '1';
+
+        for (let i = 0; i < bootLines.length; i++) {
+            document.getElementById(bootLines[i]).classList.add('show');
+            bootBar.style.width = ((i + 1) / bootLines.length * 100) + '%';
+            await sleep(350);
+        }
+
+        await sleep(400);
+        bootReady.style.opacity = '1';
+        await sleep(700);
+
+        boot.style.transition = 'opacity 0.6s';
+        boot.style.opacity = '0';
+        main.classList.add('show');
+        await sleep(600);
+        boot.style.display = 'none';
+    }
+
+    runBoot();
+
+    // ── SPARKS + SHARDS ───────────────────────────
+    function spawnSparks() {
+        const container = document.getElementById('spark-container');
+        container.innerHTML = '';
+
+        // sparks
+        for (let i = 0; i < 30; i++) {
+            const s = document.createElement('div');
+            s.className = 'spark';
+            s.style.left = (15 + Math.random() * 70) + '%';
+            s.style.top  = (10 + Math.random() * 80) + '%';
+            s.style.width  = (1 + Math.random() * 3) + 'px';
+            s.style.height = s.style.width;
+            s.style.background = Math.random() > 0.5 ? '#ffffff' : '#cc88ff';
+            const dx = (Math.random() - 0.5) * 150;
+            const dy = -(Math.random() * 150 + 30);
+            s.style.setProperty('--dx', dx + 'px');
+            s.style.setProperty('--dy', dy + 'px');
+            s.style.animationDelay    = (Math.random() * 0.5) + 's';
+            s.style.animationDuration = (0.3 + Math.random() * 0.4) + 's';
+            container.appendChild(s);
+        }
+
+        // shards
+        for (let i = 0; i < 12; i++) {
+            const sh = document.createElement('div');
+            sh.className = 'shard';
+            const size = 4 + Math.random() * 10;
+            sh.style.width  = size + 'px';
+            sh.style.height = size + 'px';
+            sh.style.left = (10 + Math.random() * 80) + '%';
+            sh.style.top  = (10 + Math.random() * 80) + '%';
+            const sx = (Math.random() - 0.5) * 200;
+            const sy = -(Math.random() * 200);
+            sh.style.setProperty('--sx', sx + 'px');
+            sh.style.setProperty('--sy', sy + 'px');
+            sh.style.animationDelay    = (Math.random() * 1) + 's';
+            sh.style.animationDuration = (1 + Math.random() * 1.5) + 's';
+            container.appendChild(sh);
+        }
+    }
+
+    // ── AURA ──────────────────────────────────────
+    function startAura() {
+        spawnSparks();
+        const aura = document.getElementById('aura-container');
+        aura.style.transition = 'opacity 0.4s';
+        aura.classList.add('active');
+        aura.style.opacity = '1';
+    }
+
+    function stopAura() {
+        const aura = document.getElementById('aura-container');
+        aura.style.transition = 'opacity 0.8s';
+        aura.style.opacity = '0';
+        setTimeout(() => {
+            aura.classList.remove('active');
+            aura.style.opacity = '';
+        }, 800);
+    }
+
+    // ── CHAT ──────────────────────────────────────
+    const chatBox = document.getElementById('chat-box');
+    const input   = document.getElementById('user-input');
+
+    input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = input.scrollHeight + 'px';
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    function sendSuggestion(el) {
+        input.value = el.textContent;
+        sendMessage();
+    }
+
+    function addMessage(text, role) {
+        const msg = document.createElement('div');
+        msg.className = `msg ${role}`;
+        msg.innerHTML = `
+            <div class="msg-label">${role === 'user' ? 'You' : 'Sainyx'}</div>
+            <div class="msg-bubble">${text}</div>
+        `;
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function showTyping() {
+        const t = document.createElement('div');
+        t.className = 'msg bot';
+        t.id = 'typing';
+        t.innerHTML = `
+            <div class="msg-label">Sainyx</div>
+            <div class="typing"><span></span><span></span><span></span></div>
+        `;
+        chatBox.appendChild(t);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function removeTyping() {
+        const t = document.getElementById('typing');
+        if (t) t.remove();
+    }
+
+    async function sendMessage() {
+        const message = input.value.trim();
+        if (!message) return;
+
+        const welcome = document.querySelector('.welcome');
+        if (welcome) welcome.remove();
+
+        addMessage(message, 'user');
+        input.value = '';
+        input.style.height = 'auto';
+
+        startAura();
+        showTyping();
+
+        const res = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+
+        removeTyping();
+        addMessage(data.response, 'bot');
+        stopAura();
+    }
+</script>
+</body>
+</html>
