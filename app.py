@@ -1,4 +1,6 @@
 import os
+
+import torch
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
 
