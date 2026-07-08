@@ -1,6 +1,4 @@
 import os
-
-# ── Load model + vocab together ───────────────────
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
 
@@ -11,10 +9,9 @@ if not os.path.exists(model_path):
     try:
         from huggingface_hub import hf_hub_download
         model_path = hf_hub_download(
-            repo_id='ssaiyajin/Sainyx',
+            repo_id='ssaiyajin/sainyx-model',
             filename='sainyx_v2_full.pt',
-            repo_type='space',
-            local_dir='/app'
+            repo_type='model'
         )
         print(f"✅ Model downloaded to: {model_path}")
     except Exception as e:
