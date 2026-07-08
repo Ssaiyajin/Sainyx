@@ -1,5 +1,10 @@
 import os
+import io
 import torch
+from model.gpt import Sainyx, BLOCK_SIZE
+from flask import Flask, render_template, request, jsonify, send_file
+from data_analysis.analyzer import analyze_csv, generate_charts, summarize
+from data_analysis.pdf_export import generate_pdf
 
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
