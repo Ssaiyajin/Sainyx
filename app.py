@@ -9,18 +9,6 @@ from data_analysis.pdf_export import generate_pdf
 
 app = Flask(__name__)
 
-# ── Load vocab ─────────────────────────────────────
-with open('data/sainyx_data.txt', 'r', encoding='utf-8') as f:
-    text = f.read()
-
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
-stoi = { ch:i for i,ch in enumerate(chars) }
-itos = { i:ch for i,ch in enumerate(chars) }
-
-encode = lambda s: [stoi.get(c, 0) for c in s]
-decode = lambda l: ''.join([itos[i] for i in l])
-
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
 checkpoint = torch.load('sainyx_v2_full.pt', map_location=device)
