@@ -47,4 +47,65 @@ model.load_state_dict(state_dict)
 print("✅ Weights loaded")
 model.eval()
 print("🔥 Sainyx ready!")
-checkpoint = torch.load(model_path, map_location=device)
+
+# ── Flask app ──────────────────────────────────────
+app = Flask(__name__)
+
+# ── Routes ────────────────────────────────────────
+@app.route('/')
+def home():
+    return render_template('chat.html')
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    user_input = request.json.get('message', '').strip()
+    if not user_input:
+        return jsonify({'response': '...'})
+    prompt = f"Question: {user_input}\nAnswer:"
+    context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
+    with torch.no_grad():
+        output = model.generate(context, max_new_tokens=80)
+    response = decode(output[0].tolist())
+    response = response[len(prompt):]
+    return jsonify({'response': response})
+
+@app.route('/data')
+def data():
+    return render_template('data.html')
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'})
+    file = request.files['file']
+    if not file.filename.endswith('.csv'):
+        return jsonify({'error': 'Only CSV files supported'})
+    os.makedirs('uploads', exist_ok=True)
+    filepath = f"uploads/{file.filename}"
+    file.save(filepath)
+    df, report = analyze_csv(filepath)
+    charts = generate_charts(df)
+    summary = summarize(report)
+    os.remove(filepath)
+    return jsonify({
+        'summary': summary,
+        'report': report,
+        'charts': [{'title': t, 'data': d} for t, d in charts]
+    })
+
+@app.route('/download-pdf', methods=['POST'])
+def download_pdf():
+    data = request.json
+    pdf_bytes = generate_pdf(
+        data['report'],
+        data['summary'],
+        data['charts']
+    )
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name='sainyx_report.pdf'
+    )
+
+app.run(host='0.0.0.0', port=7860, debug=False)
