@@ -1,94 +1,24 @@
-import torch
 import os
-import io
-from model.gpt import Sainyx, BLOCK_SIZE
-from flask import Flask, render_template, request, jsonify, send_file
-from data_analysis.analyzer import analyze_csv, generate_charts, summarize
-from data_analysis.pdf_export import generate_pdf
 
-app = Flask(__name__)
+# ── Debug — find model ────────────────────────────
+def find_model():
+    search_paths = [
+        'sainyx_v2_full.pt',
+        '/app/sainyx_v2_full.pt',
+        '/home/user/app/sainyx_v2_full.pt',
+    ]
+    # also search current directory
+    print(f"Current dir: {os.getcwd()}")
+    print(f"Files in current dir: {os.listdir('.')}")
+    print(f"Files in /app: {os.listdir('/app')}")
+    
+    for path in search_paths:
+        if os.path.exists(path):
+            print(f"✅ Found model at: {path}")
+            return path
+    
+    print("❌ Model not found in any path!")
+    return None
 
-# ── Load model + vocab together ───────────────────
-device = 'cpu'
-
-# find model file
-for model_path in ['sainyx_v2_full.pt', '/app/sainyx_v2_full.pt', '/data/sainyx_v2_full.pt']:
-    if os.path.exists(model_path):
-        break
-
-print(f"Loading model from: {model_path}")
+model_path = find_model()
 checkpoint = torch.load(model_path, map_location=device)
-
-chars = checkpoint['chars']
-stoi  = checkpoint['stoi']
-itos  = {int(k) if isinstance(k, str) else k: v for k, v in checkpoint['itos'].items()}
-
-encode = lambda s: [stoi.get(c, 0) for c in s]
-decode = lambda l: ''.join([itos.get(i, '?') for i in l])
-
-state_dict = checkpoint['model_state_dict']
-vocab_size  = state_dict['token_embedding.weight'].shape[0]
-model = Sainyx(vocab_size=vocab_size).to(device)
-model.load_state_dict(state_dict)
-model.eval()
-print(f"Sainyx loaded — vocab: {vocab_size}")
-
-# ── Routes ──────────────────────────────────────────
-@app.route('/')
-def home():
-    return render_template('chat.html')
-
-@app.route('/chat', methods=['POST'])
-def chat():
-    user_input = request.json.get('message', '').strip()
-    if not user_input:
-        return jsonify({'response': '...'})
-    prompt = f"Question: {user_input}\nAnswer:"
-    context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
-    with torch.no_grad():
-        output = model.generate(context, max_new_tokens=80)
-    response = decode(output[0].tolist())
-    response = response[len(prompt):]
-    return jsonify({'response': response})
-
-@app.route('/data')
-def data():
-    return render_template('data.html')
-
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'})
-    file = request.files['file']
-    if not file.filename.endswith('.csv'):
-        return jsonify({'error': 'Only CSV files supported'})
-    os.makedirs('uploads', exist_ok=True)
-    filepath = f"uploads/{file.filename}"
-    file.save(filepath)
-    df, report = analyze_csv(filepath)
-    charts = generate_charts(df)
-    summary = summarize(report)
-    os.remove(filepath)
-    return jsonify({
-        'summary': summary,
-        'report': report,
-        'charts': [{'title': t, 'data': d} for t, d in charts]
-    })
-
-@app.route('/download-pdf', methods=['POST'])
-def download_pdf():
-    data = request.json
-    pdf_bytes = generate_pdf(
-        data['report'],
-        data['summary'],
-        data['charts']
-    )
-    return send_file(
-        io.BytesIO(pdf_bytes),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name='sainyx_report.pdf'
-    )
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=7860, debug=False)
