@@ -23,3 +23,23 @@ if not os.path.exists(model_path):
 
 print(f"Loading model from: {model_path}")
 checkpoint = torch.load(model_path, map_location=device)
+print("✅ Checkpoint loaded")
+
+chars = checkpoint['chars']
+stoi  = checkpoint['stoi']
+itos  = {int(k) if isinstance(k, str) else k: v for k, v in checkpoint['itos'].items()}
+
+encode = lambda s: [stoi.get(c, 0) for c in s]
+decode = lambda l: ''.join([itos.get(i, '?') for i in l])
+
+state_dict = checkpoint['model_state_dict']
+vocab_size  = state_dict['token_embedding.weight'].shape[0]
+print(f"Vocab size: {vocab_size}")
+
+model = Sainyx(vocab_size=vocab_size).to(device)
+print("✅ Model created")
+model.load_state_dict(state_dict)
+print("✅ Weights loaded")
+model.eval()
+print("🔥 Sainyx ready!")
+checkpoint = torch.load(model_path, map_location=device)
