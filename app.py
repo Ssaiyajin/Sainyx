@@ -1,24 +1,19 @@
 import os
 
-# ── Debug — find model ────────────────────────────
-def find_model():
-    search_paths = [
-        'sainyx_v2_full.pt',
-        '/app/sainyx_v2_full.pt',
-        '/home/user/app/sainyx_v2_full.pt',
-    ]
-    # also search current directory
-    print(f"Current dir: {os.getcwd()}")
-    print(f"Files in current dir: {os.listdir('.')}")
-    print(f"Files in /app: {os.listdir('/app')}")
-    
-    for path in search_paths:
-        if os.path.exists(path):
-            print(f"✅ Found model at: {path}")
-            return path
-    
-    print("❌ Model not found in any path!")
-    return None
+# ── Load model + vocab together ───────────────────
+device = 'cpu'
 
-model_path = find_model()
+model_path = 'sainyx_v2_full.pt'
+
+if not os.path.exists(model_path):
+    print("Downloading model from HuggingFace...")
+    from huggingface_hub import hf_hub_download
+    model_path = hf_hub_download(
+        repo_id='ssaiyajin/Sainyx',
+        filename='sainyx_v2_full.pt',
+        repo_type='space'
+    )
+    print(f"✅ Model downloaded to: {model_path}")
+
+print(f"Loading model from: {model_path}")
 checkpoint = torch.load(model_path, map_location=device)
