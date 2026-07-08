@@ -1,29 +1,34 @@
-
-import torch
 import os
 import io
+import torch
 from model.gpt import Sainyx, BLOCK_SIZE
 from flask import Flask, render_template, request, jsonify, send_file
 from data_analysis.analyzer import analyze_csv, generate_charts, summarize
 from data_analysis.pdf_export import generate_pdf
 
-app = Flask(__name__)
-
-# ── Load vocab ─────────────────────────────────────
-with open('data/sainyx_data.txt', 'r', encoding='utf-8') as f:
-    text = f.read()
-
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
-stoi = { ch:i for i,ch in enumerate(chars) }
-itos = { i:ch for i,ch in enumerate(chars) }
-
-encode = lambda s: [stoi.get(c, 0) for c in s]
-decode = lambda l: ''.join([itos[i] for i in l])
-
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
-checkpoint = torch.load('sainyx_v2_full.pt', map_location=device)
+
+model_path = 'sainyx_v2_full.pt'
+
+if not os.path.exists(model_path):
+    print("Downloading model from HuggingFace...")
+    try:
+        from huggingface_hub import hf_hub_download
+        model_path = hf_hub_download(
+            repo_id='ssaiyajin/sainyx-model',
+            filename='sainyx_v2_full.pt',
+            repo_type='model',
+            token=os.environ.get('HF_TOKEN')
+        )
+        print(f"✅ Model downloaded to: {model_path}")
+    except Exception as e:
+        print(f"❌ Download failed: {e}")
+        raise
+
+print(f"Loading model from: {model_path}")
+checkpoint = torch.load(model_path, map_location=device)
+print("✅ Checkpoint loaded")
 
 chars = checkpoint['chars']
 stoi  = checkpoint['stoi']
@@ -34,11 +39,19 @@ decode = lambda l: ''.join([itos.get(i, '?') for i in l])
 
 state_dict = checkpoint['model_state_dict']
 vocab_size  = state_dict['token_embedding.weight'].shape[0]
-model = Sainyx(vocab_size=vocab_size).to(device)
-model.load_state_dict(state_dict)
-model.eval()
+print(f"Vocab size: {vocab_size}")
 
-# ── Routes ──────────────────────────────────────────
+model = Sainyx(vocab_size=vocab_size).to(device)
+print("✅ Model created")
+model.load_state_dict(state_dict)
+print("✅ Weights loaded")
+model.eval()
+print("🔥 Sainyx ready!")
+
+# ── Flask app ──────────────────────────────────────
+app = Flask(__name__)
+
+# ── Routes ────────────────────────────────────────
 @app.route('/')
 def home():
     return render_template('chat.html')
@@ -46,21 +59,14 @@ def home():
 @app.route('/chat', methods=['POST'])
 def chat():
     user_input = request.json.get('message', '').strip()
-    
     if not user_input:
         return jsonify({'response': '...'})
-    
-    # wrap in Q&A format so model knows to answer
     prompt = f"Question: {user_input}\nAnswer:"
     context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
-    
     with torch.no_grad():
         output = model.generate(context, max_new_tokens=80)
-    
     response = decode(output[0].tolist())
-    # strip the prompt, return only the answer
     response = response[len(prompt):]
-    
     return jsonify({'response': response})
 
 @app.route('/data')
@@ -71,28 +77,20 @@ def data():
 def analyze():
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'})
-    
     file = request.files['file']
     if not file.filename.endswith('.csv'):
         return jsonify({'error': 'Only CSV files supported'})
-    
-    # save temporarily
     os.makedirs('uploads', exist_ok=True)
     filepath = f"uploads/{file.filename}"
     file.save(filepath)
-    
-    # analyze
     df, report = analyze_csv(filepath)
     charts = generate_charts(df)
     summary = summarize(report)
-    
-    # cleanup
     os.remove(filepath)
-    
     return jsonify({
         'summary': summary,
         'report': report,
-        'charts':  [{'title': t, 'data': d} for t, d in charts]
+        'charts': [{'title': t, 'data': d} for t, d in charts]
     })
 
 @app.route('/download-pdf', methods=['POST'])
@@ -110,6 +108,4 @@ def download_pdf():
         download_name='sainyx_report.pdf'
     )
 
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=7860, debug=False)
+app.run(host='0.0.0.0', port=7860, debug=False)

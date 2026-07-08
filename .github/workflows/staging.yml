@@ -1,0 +1,25 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - Dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Staging
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config user.email "deploy@sainyx.ai"
+          git config user.name "Sainyx Deploy"
+          git remote add staging https://ssaiyajin:$HF_TOKEN@huggingface.co/spaces/ssaiyajin/Sainyx-staging
+          git push staging Dev:main --force

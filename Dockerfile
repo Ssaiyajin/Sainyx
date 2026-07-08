@@ -2,15 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# install dependencies
+# install dependencies first (cached layer - only rebuilds if requirements.txt changes)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# copy project
+# copy code after (changes here don't invalidate pip cache)
 COPY . .
 
-# expose port
 EXPOSE 7860
 
-# run app
 CMD ["python", "app.py"]
