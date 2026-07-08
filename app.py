@@ -1,6 +1,6 @@
 import os
-
 import torch
+
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
 
@@ -13,7 +13,8 @@ if not os.path.exists(model_path):
         model_path = hf_hub_download(
             repo_id='ssaiyajin/sainyx-model',
             filename='sainyx_v2_full.pt',
-            repo_type='model'
+            repo_type='model',
+            token=os.environ.get('HF_TOKEN')
         )
         print(f"✅ Model downloaded to: {model_path}")
     except Exception as e:
