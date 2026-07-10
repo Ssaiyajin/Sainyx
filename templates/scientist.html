@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sainyx — Data Scientist</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #0a0a1a;
+            background: #030308;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links { margin-left: auto; display: flex; gap: 16px; }
+        .nav-links a { font-size: 12px; color: #444; text-decoration: none; transition: color 0.2s; }
+        .nav-links a:hover { color: #00ff88; }
+        .nav-links a.active { color: #00ff88; }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .page-title { text-align: center; }
+        .page-title h1 {
+            font-size: 28px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+        .page-title p { font-size: 13px; color: #333; }
+
+        /* Upload zone */
+        #upload-zone {
+            border: 1px dashed #1a1a2e;
+            border-radius: 16px;
+            padding: 48px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #050510;
+        }
+
+        #upload-zone:hover { border-color: #00ff8844; background: #05051a; }
+        #upload-zone.dragging { border-color: #00ff88; background: #00ff8808; }
+        #upload-zone .icon { font-size: 40px; margin-bottom: 12px; }
+        #upload-zone h3 { font-size: 16px; color: #666; margin-bottom: 6px; }
+        #upload-zone p { font-size: 12px; color: #333; }
+        #file-input { display: none; }
+
+        #upload-btn {
+            margin-top: 16px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #00ff88, #00aaff);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #000;
+            transition: opacity 0.2s;
+        }
+
+        #upload-btn:hover { opacity: 0.85; }
+
+        /* Target selector */
+        #target-selector {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background: #050510;
+            border: 1px solid #0a0a20;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h3 {
+            font-size: 11px;
+            color: #00ff88;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+            font-family: 'Courier New', monospace;
+        }
+
+        #col-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: #0a0a1a;
+            border: 1px solid #1a1a2e;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #col-select:focus { border-color: #00ff8844; }
+
+        #train-btn {
+            padding: 12px 32px;
+            background: linear-gradient(135deg, #00ff88, #00aaff);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            color: #000;
+            transition: opacity 0.2s;
+            align-self: flex-start;
+        }
+
+        #train-btn:hover { opacity: 0.85; }
+
+        /* Loading */
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .hud-loader {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            border: 1px solid #00ff8844;
+            border-top: 2px solid #00ff88;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #loading p { font-size: 12px; color: #444; font-family: 'Courier New', monospace; letter-spacing: 2px; }
+
+        /* Results */
+        #results { display: none; flex-direction: column; gap: 20px; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: #0a0a1a;
+            border: 1px solid #111;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .stat-box .label { font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-family: 'Courier New', monospace; }
+        .stat-box .value { font-size: 20px; font-weight: 700; color: #00ff88; }
+        .stat-box .value.blue { color: #00aaff; }
+        .stat-box .value.purple { color: #aa66ff; }
+
+        /* Feature importance table */
+        .feat-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .feat-table th { text-align: left; padding: 8px 12px; color: #444; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #0a0a20; font-family: 'Courier New', monospace; }
+        .feat-table td { padding: 8px 12px; border-bottom: 1px solid #05050f; color: #888; }
+        .feat-table td:first-child { color: #e0e0e0; }
+
+        .importance-bar {
+            height: 6px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            border-radius: 3px;
+            margin-top: 4px;
+        }
+
+        /* Charts */
+        #charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+        .chart-box { background: #0a0a1a; border: 1px solid #111; border-radius: 8px; overflow: hidden; }
+        .chart-title { padding: 8px 12px; font-size: 10px; color: #444; font-family: 'Courier New', monospace; letter-spacing: 1px; text-transform: uppercase; }
+        .chart-box img { width: 100%; display: block; }
+
+        .btn-row { display: flex; gap: 12px; justify-content: center; }
+
+        #reset-btn {
+            padding: 10px 24px;
+            background: transparent;
+            border: 1px solid #1a1a2e;
+            border-radius: 8px;
+            color: #444;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        #reset-btn:hover { border-color: #00ff8844; color: #00ff88; }
+
+        .task-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .task-badge.classification { background: #00ff8811; border: 1px solid #00ff8833; color: #00ff88; }
+        .task-badge.regression { background: #00aaff11; border: 1px solid #00aaff33; color: #00aaff; }
+    </style>
+</head>
+<body>
+
+<header>
+    <a href="/" class="logo">SAINYX</a>
+    <div class="nav-links">
+        <a href="/">Chat</a>
+        <a href="/data">Data Analysis</a>
+        <a href="/scientist" class="active">Data Scientist</a>
+    </div>
+</header>
+
+<div class="container">
+
+    <div class="page-title">
+        <h1>🧪 Data Scientist</h1>
+        <p>Upload a CSV, select a target column — Sainyx trains a model and predicts.</p>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="icon">📂</div>
+        <h3>Drop your CSV here</h3>
+        <p>or click to browse</p>
+        <button id="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+            Choose File
+        </button>
+        <input type="file" id="file-input" accept=".csv" onchange="handleFile(this.files[0])">
+    </div>
+
+    <!-- Step 2: Select target -->
+    <div id="target-selector">
+        <div class="card">
+            <h3>🎯 Select Target Column</h3>
+            <p style="font-size:12px; color:#444; margin-bottom:12px;">
+                Choose the column you want Sainyx to predict.
+            </p>
+            <select id="col-select">
+                <option value="">-- select column --</option>
+            </select>
+        </div>
+        <button id="train-btn" onclick="trainModel()">⚡ Train Model</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading">
+        <div class="hud-loader"></div>
+        <p>TRAINING MODEL...</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+
+        <div class="card">
+            <h3>🧠 Model Results</h3>
+            <div class="stats-grid" id="stats-grid"></div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Feature Importance</h3>
+            <table class="feat-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Importance</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+                <tbody id="feat-table-body"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>📉 Visualizations</h3>
+            <div id="charts-grid"></div>
+        </div>
+
+        <div class="btn-row">
+            <button id="reset-btn" onclick="reset()">↩ Try Another Dataset</button>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    let currentFile = null;
+
+    const zone = document.getElementById('upload-zone');
+
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragging'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragging');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+    });
+
+    async function handleFile(file) {
+        if (!file || !file.name.endsWith('.csv')) {
+            alert('Please upload a CSV file.');
+            return;
+        }
+
+        currentFile = file;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/scientist-columns', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        const select = document.getElementById('col-select');
+        select.innerHTML = '<option value="">-- select column --</option>';
+        data.columns.forEach(col => {
+            const opt = document.createElement('option');
+            opt.value = col;
+            opt.textContent = col;
+            select.appendChild(opt);
+        });
+
+        document.getElementById('upload-zone').style.display = 'none';
+        document.getElementById('target-selector').style.display = 'flex';
+    }
+
+    async function trainModel() {
+        const target = document.getElementById('col-select').value;
+        if (!target) { alert('Please select a target column.'); return; }
+
+        document.getElementById('target-selector').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        formData.append('target', target);
+
+        const res = await fetch('/scientist', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        document.getElementById('loading').style.display = 'none';
+        renderResults(data);
+    }
+
+    function renderResults(data) {
+        const statsGrid = document.getElementById('stats-grid');
+        const scoreColor = data.score > 0.8 ? '#00ff88' : data.score > 0.6 ? '#ffaa00' : '#ff4444';
+
+        statsGrid.innerHTML = `
+            <div class="stat-box">
+                <div class="label">Task Type</div>
+                <div style="margin-top:6px;">
+                    <span class="task-badge ${data.task}">${data.task}</span>
+                </div>
+            </div>
+            <div class="stat-box">
+                <div class="label">${data.metric_name}</div>
+                <div class="value" style="color:${scoreColor}">${(data.score * 100).toFixed(1)}%</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Training Samples</div>
+                <div class="value blue">${data.n_train}</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Test Samples</div>
+                <div class="value purple">${data.n_test}</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Features Used</div>
+                <div class="value">${data.features.length}</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">Target Column</div>
+                <div class="value" style="font-size:14px; color:#00aaff">${data.target}</div>
+            </div>
+        `;
+
+        const tbody = document.getElementById('feat-table-body');
+        tbody.innerHTML = '';
+        const maxImportance = Math.max(...Object.values(data.feature_importance));
+        Object.entries(data.feature_importance).slice(0, 10).forEach(([feat, imp]) => {
+            const pct = ((imp / maxImportance) * 100).toFixed(0);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${feat}</td>
+                <td>
+                    <div class="importance-bar" style="width:${pct}%"></div>
+                </td>
+                <td>${(imp * 100).toFixed(1)}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        const chartsGrid = document.getElementById('charts-grid');
+        chartsGrid.innerHTML = '';
+        data.charts.forEach(chart => {
+            const box = document.createElement('div');
+            box.className = 'chart-box';
+            box.innerHTML = `
+                <div class="chart-title">${chart.title}</div>
+                <img src="data:image/png;base64,${chart.data}" alt="${chart.title}">
+            `;
+            chartsGrid.appendChild(box);
+        });
+
+        document.getElementById('results').style.display = 'flex';
+    }
+
+    function reset() {
+        currentFile = null;
+        document.getElementById('upload-zone').style.display = 'block';
+        document.getElementById('target-selector').style.display = 'none';
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('file-input').value = '';
+    }
+</script>
+</body>
+</html>
