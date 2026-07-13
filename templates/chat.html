@@ -8,7 +8,6 @@
 </head>
 <body>
 
-<!-- OVERLAY -->
 <div id="overlay">
     <div id="energy-field">
         <div id="energy-outer"></div>
@@ -48,7 +47,6 @@
     </div>
 </div>
 
-<!-- BOOT -->
 <div id="boot">
     <div id="boot-logo">SAINYX</div>
     <div id="boot-lines">
@@ -63,7 +61,6 @@
     <div id="boot-ready">SYSTEM READY</div>
 </div>
 
-<!-- APP -->
 <div id="app">
     <header>
         <div class="logo">SAINYX</div>
@@ -75,7 +72,8 @@
         <button class="cap-btn active" id="cap-chat" onclick="setMode('chat')">💬 Chat</button>
         <button class="cap-btn" id="cap-data" onclick="setMode('data')">📊 Data Analysis</button>
         <button class="cap-btn" id="cap-scientist" onclick="setMode('scientist')">🧪 Train Model</button>
-        <button class="cap-btn soon" title="Coming soon">🎨 Image Gen</button>
+        <button class="cap-btn" id="cap-image" onclick="setMode('image')">🎨 Image Gen</button>
+        <button class="cap-btn soon" title="Coming soon">🔊 Voice Gen</button>
         <button class="cap-btn soon" title="Coming soon">🎬 Video Gen</button>
         <button class="cap-btn soon" title="Coming soon">🌐 API</button>
     </div>
@@ -100,7 +98,7 @@
                 </svg>
             </button>
         </div>
-        <div id="input-hint">Use 📎 to attach a CSV for data analysis or model training</div>
+        <div id="input-hint">Use 📎 to attach CSV · Switch modes above · Image Gen: describe what to create</div>
     </div>
 </div>
 
@@ -108,6 +106,7 @@
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/data.js"></script>
 <script src="/static/js/scientist.js"></script>
+<script src="/static/js/image.js"></script>
 <script src="/static/js/boot.js"></script>
 </body>
 </html>

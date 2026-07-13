@@ -1,6 +1,8 @@
 import os
 import io
 import pandas as pd
+import base64
+import requests as req
 import torch
 from model.gpt import Sainyx, BLOCK_SIZE
 from flask import Flask, render_template, request, jsonify, send_file
@@ -166,4 +168,36 @@ def download_pdf():
         download_name='sainyx_report.pdf'
     )
 
+@app.route('/generate-image', methods=['POST'])
+def generate_image():
+    data = request.json
+    prompt = data.get('prompt', '').strip()
+
+    if not prompt:
+        return jsonify({'error': 'No prompt provided'})
+
+    # enhance for better quality
+    enhanced = f"{prompt}, digital art, high quality, detailed, 4k, artstation"
+
+    try:
+        response = req.post(
+            "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
+            headers={"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"},
+            json={"inputs": enhanced},
+            timeout=120
+        )
+
+        if response.status_code == 200:
+            img_b64 = base64.b64encode(response.content).decode('utf-8')
+            return jsonify({'image': img_b64, 'prompt': enhanced})
+        elif response.status_code == 503:
+            return jsonify({'error': 'Model is loading, please try again in 20 seconds'})
+        else:
+            return jsonify({'error': f'Generation failed ({response.status_code})'})
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
+        
 app.run(host='0.0.0.0', port=7860, debug=False)

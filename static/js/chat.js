@@ -18,7 +18,7 @@ function setMode(mode) {
         chat:      'Ask anything...',
         data:      'Attach a CSV to analyze →',
         scientist: 'Attach a CSV to train a model →',
-        image:     'Coming soon...',
+        image:     'Describe what to generate... e.g. "Goku ultra instinct, anime art, 4k',
         video:     'Coming soon...'
     };
     input.placeholder = hints[mode] || 'Ask anything...';
@@ -142,7 +142,12 @@ async function sendMessage() {
         }
         return;
     }
-
+    if (currentMode === 'image' || (currentMode === 'chat' && isImageRequest(message))) {
+    const prompt = currentMode === 'image' ? message : extractImagePrompt(message);
+    generateImage(prompt);
+    return;
+    }
+    
     // text chat
     showTyping();
     const res = await fetch('/chat', {
