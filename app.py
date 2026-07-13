@@ -9,6 +9,8 @@ from flask import Flask, render_template, request, jsonify, send_file
 from data_analysis.analyzer import analyze_csv, generate_charts, summarize
 from data_analysis.pdf_export import generate_pdf
 from data_analysis.scientist import train_model
+from huggingface_hub import InferenceClient
+
 
 # ── Load model + vocab together ───────────────────
 device = 'cpu'
@@ -51,6 +53,9 @@ model.load_state_dict(state_dict)
 print("✅ Weights loaded")
 model.eval()
 print("🔥 Sainyx ready!")
+
+# ── Image generation client ────────────────────────
+image_client = InferenceClient(token=os.environ.get('HF_TOKEN'))
 
 # ── Flask app ──────────────────────────────────────
 app = Flask(__name__)
@@ -176,28 +181,23 @@ def generate_image():
     if not prompt:
         return jsonify({'error': 'No prompt provided'})
 
-    # enhance for better quality
     enhanced = f"{prompt}, digital art, high quality, detailed, 4k, artstation"
 
     try:
-        response = req.post(
-            "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
-            headers={"Authorization": f"Bearer {os.environ.get('HF_TOKEN', '')}"},
-            json={"inputs": enhanced},
-            timeout=120
+        image = image_client.text_to_image(
+            enhanced,
+            model="stabilityai/stable-diffusion-2-1"
         )
-
-        if response.status_code == 200:
-            img_b64 = base64.b64encode(response.content).decode('utf-8')
-            return jsonify({'image': img_b64, 'prompt': enhanced})
-        elif response.status_code == 503:
-            return jsonify({'error': 'Model is loading, please try again in 20 seconds'})
-        else:
-            return jsonify({'error': f'Generation failed ({response.status_code})'})
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return jsonify({'image': img_b64, 'prompt': enhanced})
 
     except Exception as e:
-        return jsonify({'error': str(e)})
+        err_msg = str(e)
+        if "loading" in err_msg.lower() or "503" in err_msg:
+            return jsonify({'error': 'Model is loading, please try again in 20 seconds'})
+        return jsonify({'error': err_msg})
 
 
-        
 app.run(host='0.0.0.0', port=7860, debug=False)
