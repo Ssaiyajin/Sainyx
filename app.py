@@ -186,7 +186,7 @@ def generate_image():
     try:
         image = image_client.text_to_image(
             enhanced,
-            model="stabilityai/stable-diffusion-2-1"
+            model="black-forest-labs/FLUX.1-dev"
         )
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
