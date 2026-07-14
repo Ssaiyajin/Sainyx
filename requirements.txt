@@ -6,3 +6,5 @@ reportlab
 numpy==2.4.6
 Werkzeug
 huggingface_hub
+scikit-learn
+requests

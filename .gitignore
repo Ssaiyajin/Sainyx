@@ -17,8 +17,14 @@ env/
 *.safetensors
 
 # Data
-data/
 *.csv
+*.txt
+*.jpg
+*.jpeg
+*.png
+*.json
+*.zip
+/dataset_raw/
 
 
 # Outputs
