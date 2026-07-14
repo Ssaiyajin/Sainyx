@@ -57,26 +57,40 @@ class DiffusionScheduler:
         return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
     @torch.no_grad()
-    def sample_step(self, model, x, t, t_index):
+    def sample_step(self, model, x, t, t_index, clip_denoised=True):
         """One reverse diffusion step: denoise x from timestep t to t-1."""
-        betas_t = self._extract(self.betas, t, x.shape)
+        sqrt_alphas_cumprod_t = self._extract(self.sqrt_alphas_cumprod, t, x.shape)
         sqrt_one_minus_alphas_cumprod_t = self._extract(
             self.sqrt_one_minus_alphas_cumprod, t, x.shape
         )
-        sqrt_recip_alphas_t = self._extract(self.sqrt_recip_alphas, t, x.shape)
 
         predicted_noise = model(x, t)
 
-        model_mean = sqrt_recip_alphas_t * (
-            x - betas_t * predicted_noise / sqrt_one_minus_alphas_cumprod_t
+        # Reconstruct predicted x0 and clip it to [-1, 1] — this is the key
+        # stabilizer. Without it, small prediction errors compound over
+        # 1000 steps and can drive pixel values toward the clamp boundary,
+        # collapsing the image toward black/uniform color.
+        pred_x0 = (x - sqrt_one_minus_alphas_cumprod_t * predicted_noise) / sqrt_alphas_cumprod_t
+        if clip_denoised:
+            pred_x0 = pred_x0.clamp(-1, 1)
+
+        alphas_cumprod_t = self._extract(self.alphas_cumprod, t, x.shape)
+        alphas_cumprod_prev_t = self._extract(self.alphas_cumprod_prev, t, x.shape)
+        betas_t = self._extract(self.betas, t, x.shape)
+        alphas_t = self._extract(self.alphas, t, x.shape)
+
+        # Posterior mean using the clipped x0 estimate (standard DDPM posterior formula)
+        posterior_mean = (
+            (torch.sqrt(alphas_cumprod_prev_t) * betas_t / (1.0 - alphas_cumprod_t)) * pred_x0
+            + (torch.sqrt(alphas_t) * (1.0 - alphas_cumprod_prev_t) / (1.0 - alphas_cumprod_t)) * x
         )
 
         if t_index == 0:
-            return model_mean
+            return posterior_mean
         else:
             posterior_variance_t = self._extract(self.posterior_variance, t, x.shape)
             noise = torch.randn_like(x)
-            return model_mean + torch.sqrt(posterior_variance_t) * noise
+            return posterior_mean + torch.sqrt(posterior_variance_t) * noise
 
     @torch.no_grad()
     def sample(self, model, image_size, batch_size=1, channels=3, device='cpu'):
