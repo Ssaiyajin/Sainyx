@@ -1,6 +1,13 @@
 import torch
 import torch.nn.functional as F
+import os
+import sys
 from collections import OrderedDict
+
+# ── Make project root importable (chat.py now lives in generation/text/) ──
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(PROJECT_ROOT)
+
 from model.gpt import Sainyx, BLOCK_SIZE
 
 device = 'cpu'
