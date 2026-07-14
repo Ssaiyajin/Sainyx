@@ -184,20 +184,19 @@ def generate_image():
     enhanced = f"{prompt}, digital art, high quality, detailed, 4k, artstation"
 
     try:
-        image = image_client.text_to_image(
-            enhanced,
-            model="black-forest-labs/FLUX.1-dev"
-        )
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-        img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        return jsonify({'image': img_b64, 'prompt': enhanced})
+        import urllib.parse
+        encoded_prompt = urllib.parse.quote(enhanced)
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+
+        response = req.get(url, timeout=60)
+
+        if response.status_code == 200:
+            img_b64 = base64.b64encode(response.content).decode('utf-8')
+            return jsonify({'image': img_b64, 'prompt': enhanced})
+        else:
+            return jsonify({'error': f'Generation failed ({response.status_code})'})
 
     except Exception as e:
-        err_msg = str(e)
-        if "loading" in err_msg.lower() or "503" in err_msg:
-            return jsonify({'error': 'Model is loading, please try again in 20 seconds'})
-        return jsonify({'error': err_msg})
-
+        return jsonify({'error': str(e)})
 
 app.run(host='0.0.0.0', port=7860, debug=False)
