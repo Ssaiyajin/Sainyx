@@ -13,7 +13,8 @@ from model.gpt import Sainyx, BLOCK_SIZE
 device = 'cpu'
 
 # ── Load model + vocab together ───────────────────
-checkpoint = torch.load('sainyx_v2_full.pt', map_location=device)
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sainyx_v2_full.pt')
+checkpoint = torch.load(MODEL_PATH, map_location=device)
 
 chars = checkpoint['chars']
 stoi  = checkpoint['stoi']
