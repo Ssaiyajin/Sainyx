@@ -17,6 +17,20 @@ def upscale_to_1080p(pil_image, device='cpu'):
     Real-ESRGAN is a pretrained super-resolution model — we don't train
     this ourselves, we just call it as a post-processing step.
     """
+    # ── Compatibility shim ──
+    # basicsr (a realesrgan dependency) imports from
+    # torchvision.transforms.functional_tensor, which was removed in
+    # newer torchvision versions (the functions moved to
+    # torchvision.transforms.functional). This patches it in before
+    # basicsr tries to import it, so we don't need to downgrade torchvision.
+    import sys
+    import types
+    if 'torchvision.transforms.functional_tensor' not in sys.modules:
+        import torchvision.transforms.functional as TF
+        shim = types.ModuleType('torchvision.transforms.functional_tensor')
+        shim.rgb_to_grayscale = TF.rgb_to_grayscale
+        sys.modules['torchvision.transforms.functional_tensor'] = shim
+
     from realesrgan import RealESRGANer
     from basicsr.archs.rrdbnet_arch import RRDBNet
 
