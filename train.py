@@ -1,130 +1,148 @@
 import torch
-import torch.nn as nn
-import os
-from model.gpt import Sainyx, BLOCK_SIZE, VOCAB_SIZE
+import torch.optim as optim
+from pathlib import Path
+import sys
 
-# ── Device ───────────────────────────────────────
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f"Training on: {device}")
+from config import (
+    DEVICE,
+    TRAINING_CONFIG,
+    DATA_CONFIG,
+    TEXT_MODEL_CONFIG,
+    CHECKPOINTS_DIR,
+)
+from core.models import Sainyx
+from core.utils import load_text_data, DataLoader, estimate_loss
 
-# ── Load Data ────────────────────────────────────
-with open('data/sainyx_data.txt', 'r', encoding='utf-8') as f:
-    text = f.read()
 
-print(f"Dataset size: {len(text):,} characters")
-
-# ── Tokenizer (character level) ───────────────────
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
-print(f"Vocabulary: {vocab_size} unique characters")
-
-stoi = { ch:i for i,ch in enumerate(chars) }
-itos = { i:ch for i,ch in enumerate(chars) }
-
-encode = lambda s: [stoi[c] for c in s]
-decode = lambda l: ''.join([itos[i] for i in l])
-
-# ── Train / Val Split ─────────────────────────────
-data = torch.tensor(encode(text), dtype=torch.long)
-n    = int(0.9 * len(data))
-train_data = data[:n]
-val_data   = data[n:]
-
-print(f"Train size: {len(train_data):,} tokens")
-print(f"Val size:   {len(val_data):,} tokens")
-
-# ── Batch Loader ──────────────────────────────────
-BATCH_SIZE = 64
-
-def get_batch(split):
-    data = train_data if split == 'train' else val_data
-    ix   = torch.randint(len(data) - BLOCK_SIZE, (BATCH_SIZE,))
-    x    = torch.stack([data[i:i+BLOCK_SIZE] for i in ix])
-    y    = torch.stack([data[i+1:i+BLOCK_SIZE+1] for i in ix])
-    return x.to(device), y.to(device)
-
-# ── Model ─────────────────────────────────────────
-model = Sainyx(vocab_size=vocab_size).to(device)
-
-# Use both GPUs if available
-if torch.cuda.device_count() > 1:
-    print(f"🔥 Using {torch.cuda.device_count()} GPUs!")
-    model = torch.nn.DataParallel(model)
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
-
-# ── Checkpoint paths ──────────────────────────────
-CHECKPOINT_PATH = 'checkpoints/sainyx_checkpoint.pt'
-os.makedirs('checkpoints', exist_ok=True)
-
-start_step = 0
-
-# ── Resume from checkpoint if it exists ───────────
-if os.path.exists(CHECKPOINT_PATH):
-    print(f"\n🔄 Found checkpoint — resuming training...")
-    checkpoint = torch.load(CHECKPOINT_PATH, map_location=device)
-    state_dict = checkpoint['model_state_dict']
-    # handle DataParallel prefix mismatch
+def train():
+    """Main training loop"""
+    
+    print(f"Training on: {DEVICE}")
+    
+    # ── Load Data ────────────────────────────────
+    train_data, val_data, tokenizer = load_text_data(
+        DATA_CONFIG['training_data_file'],
+        train_split=DATA_CONFIG['train_split'],
+        device=DEVICE
+    )
+    
+    # ── Create Model ─────────────────────────────
+    vocab_size = tokenizer.vocab_size
+    model = Sainyx(vocab_size=vocab_size).to(DEVICE)
+    print(f"Model parameters: {model.count_parameters():,}")
+    
+    # ── Multi-GPU Support ────────────────────────
     if torch.cuda.device_count() > 1:
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            new_state_dict['module.' + k] = v
-        model.load_state_dict(new_state_dict)
-    else:
-        model.load_state_dict(state_dict)
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    start_step = checkpoint['step']
-    print(f"✅ Resumed from step {start_step}, last loss: {checkpoint['loss']:.4f}\n")
-else:
-    print("\n🆕 No checkpoint found — starting fresh\n")
+        print(f"Using {torch.cuda.device_count()} GPUs")
+        model = torch.nn.DataParallel(model)
+    
+    # ── Optimizer ────────────────────────────────
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=TRAINING_CONFIG['learning_rate'],
+        weight_decay=TRAINING_CONFIG['weight_decay']
+    )
+    
+    # ── Training State ───────────────────────────
+    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = CHECKPOINTS_DIR / 'sainyx_checkpoint.pt'
+    
+    start_iter = 0
+    best_loss = float('inf')
+    
+    # ── Resume from checkpoint if exists ─────────
+    if checkpoint_path.exists():
+        print(f"Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
+        
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_iter = checkpoint.get('iter', 0)
+        best_loss = checkpoint.get('best_loss', float('inf'))
+        print(f"Resumed from iteration {start_iter}")
+    
+    # ── Data Loaders ─────────────────────────────
+    train_loader = DataLoader(
+        train_data,
+        batch_size=TRAINING_CONFIG['batch_size'],
+        block_size=TEXT_MODEL_CONFIG['block_size'],
+        device=DEVICE
+    )
+    
+    val_loader = DataLoader(
+        val_data,
+        batch_size=TRAINING_CONFIG['batch_size'],
+        block_size=TEXT_MODEL_CONFIG['block_size'],
+        device=DEVICE
+    )
+    
+    # ── Training Loop ────────────────────────────
+    model.train()
+    
+    for iter_num in range(start_iter, TRAINING_CONFIG['max_iters']):
+        
+        # ── Periodic Evaluation ──────────────────
+        if iter_num % TRAINING_CONFIG['eval_interval'] == 0:
+            losses = estimate_loss(
+                model,
+                train_data,
+                val_data,
+                TRAINING_CONFIG['batch_size'],
+                TEXT_MODEL_CONFIG['block_size'],
+                TRAINING_CONFIG['eval_iters'],
+                DEVICE
+            )
+            print(f"Iter {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            
+            # ── Save checkpoint if val loss improved ──
+            if losses['val'] < best_loss:
+                best_loss = losses['val']
+                print(f"  Saving checkpoint (val_loss: {best_loss:.4f})")
+                
+                checkpoint_dict = {
+                    'iter': iter_num,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'best_loss': best_loss,
+                    'chars': tokenizer.chars,
+                    'stoi': tokenizer.stoi,
+                    'itos': tokenizer.itos,
+                }
+                torch.save(checkpoint_dict, checkpoint_path)
+        
+        # ── Training Step ────────────────────────
+        x, y = train_loader.get_batch()
+        logits, loss = model(x, y)
+        
+        # ── Backward Pass ────────────────────────
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        
+        # ── Gradient Clipping ────────────────────
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            TRAINING_CONFIG['grad_clip']
+        )
+        
+        optimizer.step()
+        
+        if iter_num % 100 == 0:
+            print(f"Iteration {iter_num}: loss = {loss.item():.4f}")
+    
+    print("Training complete!")
+    
+    # ── Save final model ─────────────────────────
+    final_model_path = CHECKPOINTS_DIR / 'sainyx_final.pt'
+    
+    final_checkpoint = {
+        'model_state_dict': model.state_dict(),
+        'chars': tokenizer.chars,
+        'stoi': tokenizer.stoi,
+        'itos': tokenizer.itos,
+    }
+    torch.save(final_checkpoint, final_model_path)
+    print(f"Final model saved to: {final_model_path}")
 
-total_params = sum(p.numel() for p in model.parameters())
-print(f"Sainyx model loaded")
-print(f"Total parameters: {total_params:,}")
 
-# ── Training Loop ─────────────────────────────────
-EPOCHS = 100000
-EVAL_EVERY = 5000
-SAVE_EVERY = 1000   # save checkpoint every 1000 steps
-
-print(f"\nStarting training from step {start_step} to {EPOCHS}...\n")
-
-for step in range(start_step, EPOCHS):
-    x, y = get_batch('train')
-    logits, loss = model(x, y)
-    loss = loss.mean()  # DataParallel returns loss per GPU, need to average
-
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    if step % EVAL_EVERY == 0:
-        print(f"Step {step:>5} | Loss: {loss.item():.4f}")
-
-    # save checkpoint periodically
-    if step % SAVE_EVERY == 0 and step > start_step:
-        torch.save({
-            'step': step,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss.item(),
-        }, CHECKPOINT_PATH)
-
-print("\nTraining complete!")
-
-# ── Save Final Model ──────────────────────────────
-torch.save(model.state_dict(), 'sainyx_v1.pt')
-print("Model saved to sainyx_v1.pt")
-
-# remove checkpoint since training finished
-if os.path.exists(CHECKPOINT_PATH):
-    os.remove(CHECKPOINT_PATH)
-    print("Checkpoint cleared (training finished cleanly)")
-
-# ── Generate Text ─────────────────────────────────
-print("\n── Sainyx says: ──────────────────────────")
-context = torch.zeros((1, 1), dtype=torch.long, device=device)
-# access underlying model from DataParallel wrapper
-raw_model = model.module if hasattr(model, 'module') else model
-generated = raw_model.generate(context, max_new_tokens=300)
-print(decode(generated[0].tolist()))
+if __name__ == '__main__':
+    train()

@@ -1,260 +1,258 @@
 import os
 import io
-import sys
 import base64
-import urllib.parse
-
 import pandas as pd
 import torch
+from flask import Flask, render_template, request, jsonify, send_file
 from torchvision.utils import save_image
 
-from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
-from huggingface_hub import InferenceClient, hf_hub_download
-
-from model.gpt import Sainyx, BLOCK_SIZE
+# Import refactored components
+from config import FLASK_CONFIG, DEVICE, INFERENCE_CONFIG, HF_INFERENCE_CONFIG
+from core import ModelFactory, get_vocab
 from data_analysis.analyzer import analyze_csv, generate_charts, summarize
 from data_analysis.pdf_export import generate_pdf
 from data_analysis.scientist import train_model
 
-import requests as req
 
-# Make generation/image importable, then bring in the diffusion model helpers
-sys.path.append(os.path.join(os.path.dirname(__file__), 'generation', 'image'))
-from generate import load_model as load_diffusion_model, generate_images
-
-
-# ── Load text model + vocab together ───────────────
-device = 'cpu'
-
-model_path = 'sainyx_v2_full.pt'
-
-if not os.path.exists(model_path):
-    print("Downloading model from HuggingFace...")
-    try:
-        model_path = hf_hub_download(
-            repo_id='ssaiyajin/sainyx-model',
-            filename='sainyx_v2_full.pt',
-            repo_type='model',
-            token=os.environ.get('HF_TOKEN')
-        )
-        print(f"✅ Model downloaded to: {model_path}")
-    except Exception as e:
-        print(f"❌ Download failed: {e}")
-        raise
-
-print(f"Loading model from: {model_path}")
-checkpoint = torch.load(model_path, map_location=device)
-print("✅ Checkpoint loaded")
-
-chars = checkpoint['chars']
-stoi  = checkpoint['stoi']
-itos  = {int(k) if isinstance(k, str) else k: v for k, v in checkpoint['itos'].items()}
-
-encode = lambda s: [stoi.get(c, 0) for c in s]
-decode = lambda l: ''.join([itos.get(i, '?') for i in l])
-
-state_dict = checkpoint['model_state_dict']
-vocab_size  = state_dict['token_embedding.weight'].shape[0]
-print(f"Vocab size: {vocab_size}")
-
-model = Sainyx(vocab_size=vocab_size).to(device)
-print("✅ Model created")
-model.load_state_dict(state_dict)
-print("✅ Weights loaded")
-model.eval()
-print("🔥 Sainyx ready!")
-
-
-# ── Load diffusion model ────────────────────────────
-diffusion_model_path = 'sainyx_diffusion_full.pt'
-
-if not os.path.exists(diffusion_model_path):
-    print("Downloading diffusion model from HuggingFace...")
-    try:
-        diffusion_model_path = hf_hub_download(
-            repo_id='ssaiyajin/sainyx-staging',   # or sainyx-diffusion-model once promoted
-            filename='sainyx_diffusion_full.pt',
-            repo_type='model',
-            token=os.environ.get('HF_TOKEN')
-        )
-        print(f"✅ Diffusion model downloaded to: {diffusion_model_path}")
-    except Exception as e:
-        print(f"❌ Diffusion model download failed: {e}")
-        diffusion_model_path = None
-
-diffusion_model = None
-diffusion_image_size = 128
-diffusion_timesteps = 1000
-
-if diffusion_model_path:
-    diffusion_model, diffusion_image_size, diffusion_timesteps = load_diffusion_model(
-        diffusion_model_path, device=device
-    )
-
-
-# ── Image generation client (Pollinations fallback) ─
-image_client = InferenceClient(token=os.environ.get('HF_TOKEN'))
-
-
-# ── Flask app ──────────────────────────────────────
+# ── Initialize Flask App ───────────────────────────
 app = Flask(__name__)
+app.config.update(FLASK_CONFIG)
+
+# ── Load Models on Startup ──────────────────────────
+print("Loading models...")
+try:
+    text_model, text_vocab = ModelFactory.load_text_model()
+    print("✅ Text model loaded")
+except Exception as e:
+    print(f"❌ Text model loading failed: {e}")
+    text_model = None
+    text_vocab = None
+
+try:
+    diffusion_result = ModelFactory.load_diffusion_model()
+    diffusion_model = diffusion_result['model'] if diffusion_result else None
+    print("✅ Diffusion model loaded")
+except Exception as e:
+    print(f"⚠️  Diffusion model loading failed: {e}")
+    diffusion_model = None
+
+# Fallback to HuggingFace inference
+try:
+    from huggingface_hub import InferenceClient
+    hf_client = InferenceClient(token=os.environ.get('HF_TOKEN'))
+    print("✅ HuggingFace inference client ready")
+except Exception as e:
+    print(f"⚠️  HuggingFace client failed: {e}")
+    hf_client = None
 
 
-# ── Routes ────────────────────────────────────────
+# ── Inference Functions ────────────────────────────
+
+def generate_text(prompt: str, max_tokens: int = 200) -> str:
+    """Generate text using Sainyx model"""
+    if not text_model or not text_vocab:
+        return "Text model not available"
+    
+    try:
+        encode = text_vocab['encode']
+        decode = text_vocab['decode']
+        
+        context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(DEVICE)
+        with torch.no_grad():
+            output = text_model.generate(context, max_new_tokens=max_tokens)
+        
+        response = decode(output[0].tolist())
+        return response[len(prompt):]  # Remove prompt from output
+    except Exception as e:
+        print(f"Text generation error: {e}")
+        return f"Error: {str(e)}"
+
+
+def generate_images(prompt: str, num_images: int = 1):
+    """Generate images using diffusion model or HuggingFace"""
+    if diffusion_model:
+        try:
+            # Use local diffusion model
+            from generation.image.generate import generate_images as generate_local
+            return generate_local(prompt, num_images)
+        except Exception as e:
+            print(f"Local image generation failed: {e}")
+    
+    # Fallback to HuggingFace
+    if hf_client:
+        try:
+            images = []
+            for _ in range(num_images):
+                image = hf_client.text_to_image(prompt)
+                images.append(image)
+            return images
+        except Exception as e:
+            print(f"HuggingFace image generation failed: {e}")
+    
+    return None
+
+
+# ── Web Routes ─────────────────────────────────────
+
 @app.route('/')
-def home():
+def index():
+    """Homepage"""
     return render_template('chat.html')
 
 
-@app.route('/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST'])
 def chat():
-    user_input = request.json.get('message', '').strip()
-    if not user_input:
-        return jsonify({'response': '...'})
-
-    prompt = f"Question: {user_input}\nAnswer:"
-    context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
-
-    def generate_stream():
-        with torch.no_grad():
-            idx = context.clone()
-            for _ in range(80):
-                idx_cond = idx[:, -32:]
-                logits, _ = model(idx_cond)
-                logits = logits[:, -1, :]
-                probs = torch.nn.functional.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-                idx = torch.cat((idx, next_token), dim=1)
-                char = itos.get(next_token.item(), '?')
-                yield f"data: {char}\n\n"
-        yield "data: [DONE]\n\n"
-
-    return Response(
-        stream_with_context(generate_stream()),
-        mimetype='text/event-stream'
-    )
-
-
-@app.route('/data')
-def data():
-    return render_template('data.html')
-
-
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'})
-    file = request.files['file']
-    if not file.filename.endswith('.csv'):
-        return jsonify({'error': 'Only CSV files supported'})
-    os.makedirs('uploads', exist_ok=True)
-    filepath = f"uploads/{file.filename}"
-    file.save(filepath)
-    df, report = analyze_csv(filepath)
-    charts = generate_charts(df)
-    summary = summarize(report)
-    os.remove(filepath)
+    """Chat endpoint"""
+    data = request.json
+    user_input = data.get('message', '')
+    
+    response = generate_text(user_input, max_tokens=INFERENCE_CONFIG['max_tokens'])
+    
     return jsonify({
-        'summary': summary,
-        'report': report,
-        'charts': [{'title': t, 'data': d} for t, d in charts]
+        'response': response,
+        'model': 'Sainyx v2'
     })
 
 
-@app.route('/scientist', methods=['POST'])
-def scientist():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'})
-
-    file = request.files['file']
-    target = request.form.get('target', '')
-
-    if not file.filename.endswith('.csv'):
-        return jsonify({'error': 'Only CSV files supported'})
-
-    if not target:
-        return jsonify({'error': 'No target column selected'})
-
-    os.makedirs('uploads', exist_ok=True)
-    filepath = f"uploads/{file.filename}"
-    file.save(filepath)
-
-    df = pd.read_csv(filepath)
-    os.remove(filepath)
-
-    if target not in df.columns:
-        return jsonify({'error': f'Column {target} not found'})
-
-    result = train_model(df, target)
-    return jsonify(result)
-
-
-@app.route('/scientist-columns', methods=['POST'])
-def scientist_columns():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file'})
-    file = request.files['file']
-    df = pd.read_csv(file)
-    return jsonify({'columns': list(df.columns)})
-
-
-@app.route('/scientist-page')
-def scientist_page():
-    return render_template('scientist.html')
-
-
-@app.route('/download-pdf', methods=['POST'])
-def download_pdf():
+@app.route('/api/generate/images', methods=['POST'])
+def generate_image_endpoint():
+    """Image generation endpoint"""
     data = request.json
-    pdf_bytes = generate_pdf(
-        data['report'],
-        data['summary'],
-        data['charts']
-    )
-    return send_file(
-        io.BytesIO(pdf_bytes),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name='sainyx_report.pdf'
-    )
-
-
-@app.route('/generate-image', methods=['POST'])
-def generate_image():
-    data = request.json
-    prompt = data.get('prompt', '').strip()
-
-    if not prompt:
-        return jsonify({'error': 'No prompt provided'})
-
-    use_own_model = data.get('use_own_model', False)
-
-    if use_own_model and diffusion_model is not None:
-        try:
-            samples = generate_images(
-                diffusion_model, image_size=diffusion_image_size,
-                timesteps=diffusion_timesteps, num_images=1, device=device
-            )
+    prompt = data.get('prompt', '')
+    num_images = data.get('num_images', 1)
+    
+    images = generate_images(prompt, num_images)
+    
+    if images:
+        # Convert to base64 for response
+        image_b64_list = []
+        for img in images:
             buffer = io.BytesIO()
-            save_image(samples, buffer, format='PNG')
-            img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-            return jsonify({'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion'})
-        except Exception as e:
-            return jsonify({'error': f'Sainyx model generation failed: {e}'})
+            if isinstance(img, torch.Tensor):
+                save_image(img, buffer, format='PNG')
+            else:
+                img.save(buffer, format='PNG')
+            buffer.seek(0)
+            image_b64_list.append(base64.b64encode(buffer.getvalue()).decode())
+        
+        return jsonify({
+            'images': image_b64_list,
+            'success': True
+        })
+    else:
+        return jsonify({
+            'error': 'Image generation failed',
+            'success': False
+        }), 500
 
-    # Fallback: Pollinations
-    enhanced = f"{prompt}, digital art, high quality, detailed, 4k, artstation"
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_data():
+    """Data analysis endpoint"""
+    file = request.files.get('file')
+    
+    if not file:
+        return jsonify({'error': 'No file provided'}), 400
+    
     try:
-        encoded_prompt = urllib.parse.quote(enhanced)
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
-        response = req.get(url, timeout=60)
-        if response.status_code == 200:
-            img_b64 = base64.b64encode(response.content).decode('utf-8')
-            return jsonify({'image': img_b64, 'prompt': enhanced, 'source': 'pollinations'})
-        else:
-            return jsonify({'error': f'Generation failed ({response.status_code})'})
+        # Read CSV
+        df = pd.read_csv(file)
+        
+        # Analyze
+        analysis = analyze_csv(df)
+        charts = generate_charts(df)
+        summary = summarize(df)
+        
+        return jsonify({
+            'analysis': analysis,
+            'charts': charts,
+            'summary': summary,
+            'success': True
+        })
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 500
 
 
-app.run(host='0.0.0.0', port=7860, debug=False)
+@app.route('/api/export/pdf', methods=['POST'])
+def export_pdf():
+    """PDF export endpoint"""
+    data = request.json
+    analysis_data = data.get('analysis', {})
+    
+    try:
+        pdf_buffer = generate_pdf(analysis_data)
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='sainyx_analysis.pdf'
+        )
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 500
+
+
+@app.route('/api/train-model', methods=['POST'])
+def train_model_endpoint():
+    """Train model endpoint"""
+    file = request.files.get('file')
+    
+    if not file:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    try:
+        df = pd.read_csv(file)
+        model_info = train_model(df)
+        
+        return jsonify({
+            'model': model_info,
+            'success': True
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 500
+
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'device': DEVICE,
+        'models_loaded': {
+            'text': text_model is not None,
+            'diffusion': diffusion_model is not None,
+        }
+    })
+
+
+# ── Error Handlers ─────────────────────────────────
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+
+@app.errorhandler(500)
+def server_error(error):
+    return jsonify({'error': 'Server error'}), 500
+
+
+# ── Main ───────────────────────────────────────────
+
+if __name__ == '__main__':
+    print(f"Starting Sainyx on {FLASK_CONFIG['host']}:{FLASK_CONFIG['port']}")
+    print(f"Device: {DEVICE}")
+    app.run(
+        host=FLASK_CONFIG['host'],
+        port=FLASK_CONFIG['port'],
+        debug=FLASK_CONFIG['debug']
+    )
