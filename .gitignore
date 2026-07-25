@@ -29,6 +29,11 @@ uploads/*
 .DS_Store
 Thumbs.db
 
+# Raw text datasets — large/curated data files, don't belong in git.
+# requirements.txt is explicitly excluded from this rule.
+*.txt
+!requirements.txt
+
 # Kaggle/local training scratch
 dataset_raw/
 *.png
