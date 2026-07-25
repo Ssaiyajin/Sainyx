@@ -1,53 +1,35 @@
 # Python
 __pycache__/
-*.py[cod]
-*.egg-info/
+*.pyc
+*.pyo
+.Python
 
-# Virtual environment
+# Virtual environments — never commit these (the old repo had a full .venv checked in)
 venv/
 .venv/
 env/
-.env
 
-# Model weights
+# Model checkpoints — trained on Kaggle, pulled from HF Hub at runtime.
+# Never commit these; they bloat the repo and go stale immediately.
+checkpoints/*
+!checkpoints/.gitkeep
 *.pt
 *.pth
-*.bin
 *.ckpt
-*.safetensors
 
-# Data
-*.csv
-*.txt
-*.jpg
-*.jpeg
-*.png
-*.json
-*.zip
-/dataset_raw/
+# Runtime upload scratch space
+uploads/*
+!uploads/.gitkeep
 
-
-# Outputs
-outputs/
-generated/
-*.png
-*.jpg
-*.mp4
-
-# VS Code
+# IDE
 .vscode/
+.idea/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
-# Secrets
-secrets.py
-config.py
-kaggle.json
-
-checkpoints/
-uploads/
+# Kaggle/local training scratch
+dataset_raw/
+*.png
+!static/**/*.png
