@@ -11,14 +11,19 @@ Run this on Kaggle. It will:
 """
 
 import os
+import sys
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
-from model.unet import TinyUNet
-from diffusion import NoiseScheduler
-from data.dataset import ImageFolderDataset
-from checkpoint_utils import (
+# Make project root importable when this script is run directly (e.g. on Kaggle)
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(PROJECT_ROOT)
+
+from model.video_unet import TinyUNet
+from generation.video.diffusion import NoiseScheduler
+from data.video.dataset import ImageFolderDataset
+from generation.video.checkpoint_utils import (
     save_checkpoint,
     load_checkpoint,
     push_checkpoint_to_hf,

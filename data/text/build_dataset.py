@@ -1,6 +1,9 @@
 import requests
 import time
 import random
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def scrape_wiki(topic, retries=3):
     headers = {'User-Agent': 'Sainyx/1.0'}
@@ -78,7 +81,7 @@ def build_dataset(topics, filename):
         # random delay to avoid rate limiting
         time.sleep(random.uniform(1.5, 3.0))
     
-    with open(f"data/{filename}", 'w', encoding='utf-8') as f:
+    with open(os.path.join(SCRIPT_DIR, filename), 'w', encoding='utf-8') as f:
         f.write(content)
     print(f"✅ Saved {filename} — {len(content):,} characters")
     return content
@@ -90,7 +93,7 @@ all_content += build_dataset(anime_topics, "anime.txt")
 all_content += build_dataset(gaming_topics, "gaming.txt")
 all_content += build_dataset(story_topics, "stories.txt")
 
-with open("data/sainyx_data.txt", 'w', encoding='utf-8') as f:
+with open(os.path.join(SCRIPT_DIR, "sainyx_data.txt"), 'w', encoding='utf-8') as f:
     f.write(all_content)
 
 print(f"\n🔥 Sainyx dataset ready!")

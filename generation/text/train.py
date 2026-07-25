@@ -16,7 +16,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"Training on: {device}")
 
 # ── Load Data ────────────────────────────────────
-DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'sainyx_data.txt')
+DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'text', 'sainyx_data.txt')
 with open(DATA_PATH, 'r', encoding='utf-8') as f:
     text = f.read()
 

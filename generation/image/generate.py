@@ -1,10 +1,16 @@
+import os
+import sys
 import torch
 import numpy as np
 from PIL import Image
 from torchvision.utils import save_image
 
-from unet_model import UNet
-from diffusion_scheduler import DiffusionScheduler
+# Make project root importable when this script is run directly (e.g. on Kaggle)
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(PROJECT_ROOT)
+
+from model.image_unet import UNet
+from generation.image.diffusion_scheduler import DiffusionScheduler
 
 
 def denormalize(img_tensor):
