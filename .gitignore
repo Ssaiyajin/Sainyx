@@ -16,12 +16,27 @@ checkpoints/*
 *.pt
 *.pth
 *.ckpt
+*.safetensors
 
-# Runtime upload scratch space
-uploads/*
-!uploads/.gitkeep
+# Data
+*.csv
+*.txt
+*.jpg
+*.jpeg
+*.png
+*.json
+*.zip
+/dataset_raw/
 
-# IDE
+
+# Outputs
+outputs/
+generated/
+*.png
+*.jpg
+*.mp4
+
+# VS Code
 .vscode/
 .idea/
 
