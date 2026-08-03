@@ -87,3 +87,21 @@ def push_to_both_repos(local_path, targets, token):
             print(f"   📤 Pushed to hf://{repo_id}/{path_in_repo}")
         except Exception as e:
             print(f"   ⚠️  Push to hf://{repo_id}/{path_in_repo} failed: {e}")
+
+            
+
+def delete_checkpoint_from_hf(repo_id, path_in_repo, token):
+    """Remove the resumable 'latest' checkpoint once the final consolidated
+    model has been pushed successfully - it's served its purpose and just
+    clutters the repo otherwise."""
+    from huggingface_hub import HfApi
+    api = HfApi()
+    try:
+        api.delete_file(
+            path_in_repo=path_in_repo,
+            repo_id=repo_id,
+            token=token,
+        )
+        print(f"   🗑️  Deleted hf://{repo_id}/{path_in_repo}")
+    except Exception as e:
+        print(f"   ⚠️  Could not delete hf://{repo_id}/{path_in_repo}: {e}")

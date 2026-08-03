@@ -17,6 +17,7 @@ from core.utils.checkpoint_utils import (
     push_to_both_repos,
     push_checkpoint_to_hf,
     download_latest_checkpoint_from_hf,
+    delete_checkpoint_from_hf,
     SessionTimer,
 )
 import config
@@ -47,7 +48,24 @@ def train(cfg, dataset_dir, checkpoint_dir, sample_dir, output_dir="/kaggle/work
     model = UNet(in_channels=cfg.CHANNELS, base_channels=64).to(cfg.DEVICE)
     scheduler = DiffusionScheduler(timesteps=cfg.TIMESTEPS, device=cfg.DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
+    start_epoch = 0
+    if config.HF_TOKEN:
+        try:
+            downloaded_path = download_latest_checkpoint_from_hf(
+                config.SAINYX_MODEL_REPO_ID, config.IMAGE_CHECKPOINT_PATH_IN_REPO,
+                checkpoint_dir, config.HF_TOKEN,
+            )
+            checkpoint = torch.load(downloaded_path, map_location=cfg.DEVICE)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            start_epoch = checkpoint['epoch']
+            print(f"🔄 Resumed from epoch {start_epoch} (loss {checkpoint['loss']:.4f})")
+        except Exception as e:
+            print(f"No checkpoint on HF to resume from (starting fresh): {e}")
+    else:
+        print("⚠️  HF_TOKEN not set — training will not resume across sessions.")
 
+    timer = SessionTimer(max_session_seconds=12 * 60 * 60, safety_margin_seconds=20 * 60)
     print(f"🔥 Training on {len(dataset)} images | device: {cfg.DEVICE}")
     print(f"Params: {sum(p.numel() for p in model.parameters()):,}")
 
