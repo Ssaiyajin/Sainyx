@@ -19,7 +19,7 @@ function setMode(mode) {
         data:      'Attach a CSV to analyze →',
         scientist: 'Attach a CSV to train a model →',
         image:     'Describe what to generate... e.g. "Goku ultra instinct, anime art, 4k',
-        video:     'Coming soon...'
+        video:     'Describe the frame to generate... (Tier 1 — single unconditional frame)'
     };
     input.placeholder = hints[mode] || 'Ask anything...';
 
@@ -147,7 +147,12 @@ async function sendMessage() {
     generateImage(prompt);
     return;
     }
-    
+
+    if (currentMode === 'video') {
++        generateVideo(message);
++        return;
++    }
+
     // text chat
     showTyping();
     const res = await fetch('/chat', {
