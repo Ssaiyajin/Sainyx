@@ -31,11 +31,13 @@ SAINYX_STAGING_REPO_ID = "ssaiyajin/sainyx-staging"
 # ── Text model (character-level transformer) ──────────────────────────
 TEXT_MODEL_REPO_ID = "ssaiyajin/sainyx-model"
 TEXT_MODEL_FILENAME = "sainyx_v2_full.pt"
+TEXT_CHECKPOINT_PATH_IN_REPO = "text_gen/checkpoint_latest.pt"
 TEXT_MODEL_LOCAL_PATH = os.path.join(CHECKPOINT_DIR, TEXT_MODEL_FILENAME)
 
 # ── Image diffusion model ──────────────────────────────────────────────
 IMAGE_MODEL_REPO_ID = "ssaiyajin/sainyx-staging"  # promote to sainyx-model once stable
 IMAGE_MODEL_FILENAME = "sainyx_diffusion_full.pt"
+IMAGE_CHECKPOINT_PATH_IN_REPO = "image_gen/checkpoint_latest.pt"
 IMAGE_MODEL_LOCAL_PATH = os.path.join(CHECKPOINT_DIR, IMAGE_MODEL_FILENAME)
 IMAGE_SIZE_DEFAULT = 128
 IMAGE_TIMESTEPS_DEFAULT = 1000

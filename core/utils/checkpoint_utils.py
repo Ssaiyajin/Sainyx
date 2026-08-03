@@ -1,5 +1,7 @@
 """
 checkpoint_utils.py
+Shared across text, image, and video training pipelines.
+
 Everything needed so a Kaggle quota cutoff never costs you real training
 progress. Save often, push off Kaggle immediately, resume automatically.
 """
@@ -68,6 +70,7 @@ class SessionTimer:
 
     def elapsed_minutes(self):
         return (time.time() - self.start_time) / 60
+
 
 def push_to_both_repos(local_path, targets, token):
     """

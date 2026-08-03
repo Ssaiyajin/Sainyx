@@ -23,7 +23,7 @@ sys.path.append(PROJECT_ROOT)
 from model.video_unet import TinyUNet
 from generation.video.diffusion import NoiseScheduler
 from data.video.dataset import ImageFolderDataset
-from generation.video.checkpoint_utils import (
+from core.utils.checkpoint_utils import (
     save_checkpoint,
     load_checkpoint,
     push_checkpoint_to_hf,

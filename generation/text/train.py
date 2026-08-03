@@ -10,7 +10,13 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.append(PROJECT_ROOT)
 
 from model.gpt import Sainyx, BLOCK_SIZE, VOCAB_SIZE
-from generation.video.checkpoint_utils import push_to_both_repos  # generic, not video-specific
+from core.utils.checkpoint_utils import (
+    push_to_both_repos,
+    push_checkpoint_to_hf,
+    download_latest_checkpoint_from_hf,
+    SessionTimer,
+)
+ # generic, not video-specific
 import config
 
 # ── Device ───────────────────────────────────────

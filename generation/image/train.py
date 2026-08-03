@@ -13,7 +13,12 @@ sys.path.append(PROJECT_ROOT)
 from model.image_unet import UNet
 from generation.image.diffusion_scheduler import DiffusionScheduler
 from data.images.dataset import ImageDataset
-from generation.video.checkpoint_utils import push_to_both_repos  # generic, not video-specific
+from core.utils.checkpoint_utils import (
+    push_to_both_repos,
+    push_checkpoint_to_hf,
+    download_latest_checkpoint_from_hf,
+    SessionTimer,
+)
 import config
 
 
