@@ -5,6 +5,7 @@ import urllib.parse
 
 import pandas as pd
 import torch
+from generation.video.diffusion import NoiseScheduler
 from torchvision.utils import save_image
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
@@ -91,6 +92,14 @@ if diffusion_model_path:
 
 # ── Image generation client (Pollinations fallback) ─
 image_client = InferenceClient(token=config.HF_TOKEN)
+
+# ── Load video model (Tier 1, unconditional, may not exist yet) ─────
+from core.models.factory import get_video_model
+
+video_result = get_video_model()
+video_model = video_result["model"] if video_result else None
+video_image_size = video_result["image_size"] if video_result else config.VIDEO_IMAGE_SIZE_DEFAULT
+video_timesteps = video_result["timesteps"] if video_result else config.VIDEO_TIMESTEPS_DEFAULT
 
 
 # ── Flask app ──────────────────────────────────────
@@ -252,6 +261,26 @@ def generate_image():
             return jsonify({'error': f'Generation failed ({response.status_code})'})
     except Exception as e:
         return jsonify({'error': str(e)})
+
+@app.route('/generate-video', methods=['POST'])
+def generate_video():
+    if video_model is None:
+        return jsonify({'error': 'Video model not available yet — no checkpoint pushed from Kaggle.'})
+
+    try:
+        scheduler = NoiseScheduler(timesteps=video_timesteps, device=device)
+        samples = scheduler.sample(
+            video_model, image_size=video_image_size,
+            batch_size=1, channels=3, device=device
+        )
+        samples = (samples.clamp(-1, 1) + 1) / 2  # denormalize
+
+        buffer = io.BytesIO()
+        save_image(samples, buffer, format='PNG')
+        img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return jsonify({'image': img_b64, 'source': 'sainyx-video-tier1'})
+    except Exception as e:
+        return jsonify({'error': f'Video generation failed: {e}'})
 
 
 app.run(host='0.0.0.0', port=7860, debug=False)

@@ -17,7 +17,7 @@ sys.path.append(PROJECT_ROOT)
 
 from model.video_unet import TinyUNet
 from generation.video.diffusion import NoiseScheduler
-from generation.video.checkpoint_utils import load_checkpoint
+from core.utils.checkpoint_utils import load_checkpoint
 
 CHECKPOINT_PATH = "/kaggle/working/checkpoints/checkpoint_session_end.pt"
 IMAGE_SIZE = 64
