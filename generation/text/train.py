@@ -10,6 +10,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.append(PROJECT_ROOT)
 
 from model.gpt import Sainyx, BLOCK_SIZE, VOCAB_SIZE
+from generation.video.checkpoint_utils import push_to_both_repos  # generic, not video-specific
+import config
 
 # ── Device ───────────────────────────────────────
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -164,6 +166,24 @@ for step in range(start_step, EPOCHS):
                 'val_loss': best_val_loss,
             }, BEST_PATH)
             print(f"   ✅ New best val loss: {best_val_loss:.4f} — saved sainyx_best.pt")
+
+            # This file has vocab + weights together, so it's the one
+            # ModelFactory actually loads - push it straight to both HF
+            # repos instead of a manual download/re-upload after training
+            # finishes. Also means a killed Kaggle session doesn't lose
+            # progress - the last "best" is always sitting on HF, not
+            # just locally.
+            if config.HF_TOKEN:
+                push_to_both_repos(
+                    BEST_PATH,
+                    targets=[
+                        (config.SAINYX_MODEL_REPO_ID, config.TEXT_MODEL_FILENAME),
+                        (config.SAINYX_STAGING_REPO_ID, config.TEXT_MODEL_FILENAME),
+                    ],
+                    token=config.HF_TOKEN,
+                )
+            else:
+                print("   ⚠️  HF_TOKEN not set - skipping auto-push")
 
     # save checkpoint periodically
     if step % SAVE_EVERY == 0 and step > start_step:

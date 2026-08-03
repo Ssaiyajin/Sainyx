@@ -68,3 +68,19 @@ class SessionTimer:
 
     def elapsed_minutes(self):
         return (time.time() - self.start_time) / 60
+
+def push_to_both_repos(local_path, targets, token):
+    """
+    Push a checkpoint to multiple (repo_id, path_in_repo) targets.
+    Each push is independent - if one repo fails (permissions, network
+    blip, etc.) the others still get attempted, and each result gets
+    printed rather than silently swallowed.
+
+    targets: list of (repo_id, path_in_repo) tuples
+    """
+    for repo_id, path_in_repo in targets:
+        try:
+            push_checkpoint_to_hf(local_path, repo_id, path_in_repo, token)
+            print(f"   📤 Pushed to hf://{repo_id}/{path_in_repo}")
+        except Exception as e:
+            print(f"   ⚠️  Push to hf://{repo_id}/{path_in_repo} failed: {e}")

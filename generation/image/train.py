@@ -13,6 +13,8 @@ sys.path.append(PROJECT_ROOT)
 from model.image_unet import UNet
 from generation.image.diffusion_scheduler import DiffusionScheduler
 from data.images.dataset import ImageDataset
+from generation.video.checkpoint_utils import push_to_both_repos  # generic, not video-specific
+import config
 
 
 def denormalize(img_tensor):
@@ -106,6 +108,19 @@ def train(cfg, dataset_dir, checkpoint_dir, sample_dir, output_dir="/kaggle/work
         'epochs_trained': cfg.EPOCHS,
     }, full_model_path)
     print(f"\n🔥 Training complete! Final model saved to: {full_model_path}")
-    print(f"   Download this from Kaggle's Output panel (right sidebar → Output → Download).")
+
+    if config.HF_TOKEN:
+        print("📤 Pushing to Hugging Face...")
+        push_to_both_repos(
+            full_model_path,
+            targets=[
+                (config.SAINYX_STAGING_REPO_ID, config.IMAGE_MODEL_FILENAME),
+                (config.SAINYX_MODEL_REPO_ID, f"image_gen/{config.IMAGE_MODEL_FILENAME}"),
+            ],
+            token=config.HF_TOKEN,
+        )
+        print("✅ Done - no manual Kaggle download/upload needed, ModelFactory will pick this up.")
+    else:
+        print("⚠️  HF_TOKEN not set - skipping auto-push. Download this from Kaggle's Output panel instead.")
 
     return model, scheduler

@@ -2,19 +2,19 @@
 Sainyx Text Generation Model
 GPT-like transformer for character-level text generation
 """
-
+ 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+ 
 # ── Model Hyperparameters ──────────────────────────
 BLOCK_SIZE = 128        # Context length (max sequence)
 N_EMBED = 256          # Embedding dimensions
 N_HEADS = 8            # Number of attention heads
 N_LAYERS = 6           # Number of transformer blocks
 DROPOUT = 0.1          # Dropout rate
-
-
+ 
+ 
 class AttentionHead(nn.Module):
     """Single self-attention head"""
     
@@ -25,7 +25,7 @@ class AttentionHead(nn.Module):
         self.value = nn.Linear(N_EMBED, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(BLOCK_SIZE, BLOCK_SIZE)))
         self.dropout = nn.Dropout(DROPOUT)
-
+ 
     def forward(self, x):
         B, T, C = x.shape
         k = self.key(x)
@@ -36,10 +36,15 @@ class AttentionHead(nn.Module):
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
         wei = F.softmax(wei, dim=-1)
         wei = self.dropout(wei)
-        
+ 
+        # Stashed (not part of the return value) so introspection code can
+        # read the real attention weights after a forward pass, e.g. for
+        # visualizing which tokens this head is actually attending to.
+        self.last_attn = wei.detach()
+ 
         return wei @ self.value(x)
-
-
+ 
+ 
 class MultiHeadAttention(nn.Module):
     """Multiple attention heads running in parallel"""
     
@@ -48,12 +53,12 @@ class MultiHeadAttention(nn.Module):
         self.heads = nn.ModuleList([AttentionHead(head_size) for _ in range(num_heads)])
         self.proj = nn.Linear(N_EMBED, N_EMBED)
         self.dropout = nn.Dropout(DROPOUT)
-
+ 
     def forward(self, x):
         out = torch.cat([h(x) for h in self.heads], dim=-1)
         return self.dropout(self.proj(out))
-
-
+ 
+ 
 class FeedForwardNetwork(nn.Module):
     """Position-wise feed-forward network"""
     
@@ -65,11 +70,11 @@ class FeedForwardNetwork(nn.Module):
             nn.Linear(4 * N_EMBED, N_EMBED),
             nn.Dropout(DROPOUT),
         )
-
+ 
     def forward(self, x):
         return self.net(x)
-
-
+ 
+ 
 class TransformerBlock(nn.Module):
     """One full transformer block: attention + feed-forward"""
     
@@ -80,15 +85,15 @@ class TransformerBlock(nn.Module):
         self.feed_forward = FeedForwardNetwork()
         self.ln1 = nn.LayerNorm(N_EMBED)
         self.ln2 = nn.LayerNorm(N_EMBED)
-
+ 
     def forward(self, x):
         # Self-attention with residual connection
         x = x + self.self_attention(self.ln1(x))
         # Feed-forward with residual connection
         x = x + self.feed_forward(self.ln2(x))
         return x
-
-
+ 
+ 
 class Sainyx(nn.Module):
     """
     Sainyx: GPT-like transformer model for text generation
@@ -112,7 +117,7 @@ class Sainyx(nn.Module):
         # Final layer norm and output head
         self.ln_final = nn.LayerNorm(N_EMBED)
         self.head = nn.Linear(N_EMBED, vocab_size)
-
+ 
     def forward(self, idx, targets=None):
         """
         Forward pass
@@ -140,14 +145,14 @@ class Sainyx(nn.Module):
         # Final processing
         x = self.ln_final(x)  # (B, T, N_EMBED)
         logits = self.head(x)  # (B, T, vocab_size)
-
+ 
         loss = None
         if targets is not None:
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), targets.view(B * T))
-
+ 
         return logits, loss
-
+ 
     def generate(self, idx: torch.Tensor, max_new_tokens: int):
         """
         Generate new tokens
@@ -177,7 +182,7 @@ class Sainyx(nn.Module):
             idx = torch.cat((idx, next_token), dim=1)
         
         return idx
-
+ 
     def count_parameters(self):
         """Count total trainable parameters"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
