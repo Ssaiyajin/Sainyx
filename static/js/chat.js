@@ -149,9 +149,9 @@ async function sendMessage() {
     }
 
     if (currentMode === 'video') {
-+        generateVideo(message);
-+        return;
-+    }
+    generateVideo(message);
+        return;
+    }
 
     // text chat
     showTyping();
