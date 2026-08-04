@@ -1,13 +1,10 @@
 """
-train.py
-Tier 1 training loop: unconditional tiny DDPM.
+generation/video/train.py
 
-Run this on Kaggle. It will:
-  1. Try to resume from the latest checkpoint on HF (if one exists)
-  2. Train, saving locally every SAVE_EVERY steps
-  3. Push each checkpoint to your HF model repo immediately
-  4. Watch the session clock and exit gracefully before Kaggle kills it,
-     rather than losing whatever progress happened since the last save
+Trains VideoUNet on clips instead of independent images. Same resume/
+checkpoint/HF-push machinery as before (core.utils.checkpoint_utils),
+just pointed at ClipFolderDataset + VideoUNet instead of
+ImageFolderDataset + TinyUNet.
 """
 
 import os
@@ -16,13 +13,12 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
-# Make project root importable when this script is run directly (e.g. on Kaggle)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(PROJECT_ROOT)
 
-from model.video_unet import TinyUNet
+from model.video_unet import VideoUNet
 from generation.video.diffusion import NoiseScheduler
-from data.video.dataset import ImageFolderDataset
+from data.video.clip_dataset import ClipFolderDataset
 from core.utils.checkpoint_utils import (
     save_checkpoint,
     load_checkpoint,
@@ -33,16 +29,17 @@ from core.utils.checkpoint_utils import (
 
 # ---- Config -----------------------------------------------------------
 IMAGE_SIZE = 64
-BATCH_SIZE = 32
+CLIP_LEN = 8
+BATCH_SIZE = 8          # clips per batch; effective tensor is BATCH_SIZE*CLIP_LEN frames
 EPOCHS = 100
 LR = 2e-4
 TIMESTEPS = 1000
 SAVE_EVERY_STEPS = 200
-DATA_DIR = "/kaggle/input/your-dataset-folder"   # point this at your curated images
+DATA_DIR = "/kaggle/working/data/video_clips"   # ClipFolderDataset root (clip_XXXX/ subfolders)
 LOCAL_CKPT_DIR = "/kaggle/working/checkpoints"
 HF_REPO_ID = "ssaiyajin/sainyx-model"
 HF_CKPT_PATH_IN_REPO = "video_gen/checkpoint_latest.pt"
-HF_TOKEN = os.environ.get("HF_TOKEN")            # set this as a Kaggle secret
+HF_TOKEN = os.environ.get("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ------------------------------------------------------------------------
 
@@ -50,16 +47,15 @@ os.makedirs(LOCAL_CKPT_DIR, exist_ok=True)
 
 
 def main():
-    model = TinyUNet(base_ch=64).to(DEVICE)
+    model = VideoUNet(base_ch=64).to(DEVICE)
     optimizer = AdamW(model.parameters(), lr=LR)
     scheduler = NoiseScheduler(timesteps=TIMESTEPS, device=DEVICE)
 
-    dataset = ImageFolderDataset(DATA_DIR, image_size=IMAGE_SIZE)
+    dataset = ClipFolderDataset(DATA_DIR, image_size=IMAGE_SIZE, clip_len=CLIP_LEN)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
 
     start_epoch, global_step = 0, 0
 
-    # --- Resume logic: pull latest checkpoint from HF if one exists ---
     local_resume_path = os.path.join(LOCAL_CKPT_DIR, "resumed.pt")
     if HF_TOKEN:
         try:
@@ -80,11 +76,17 @@ def main():
     model.train()
     for epoch in range(start_epoch, EPOCHS):
         for batch in loader:
+            # batch: [B, T, C, H, W]
             batch = batch.to(DEVICE)
-            t = torch.randint(0, TIMESTEPS, (batch.shape[0],), device=DEVICE).long()
+            B = batch.shape[0]
 
-            noisy_images, noise = scheduler.add_noise(batch, t)
-            predicted_noise = model(noisy_images, t)
+            # one timestep PER CLIP (not per frame) so the whole clip is
+            # noised/denoised together - this is what makes it a video
+            # model rather than T independent image models
+            t = torch.randint(0, TIMESTEPS, (B,), device=DEVICE).long()
+
+            noisy_clips, noise = scheduler.add_noise(batch, t)
+            predicted_noise = model(noisy_clips, t)
 
             loss = torch.nn.functional.mse_loss(predicted_noise, noise)
 
@@ -103,7 +105,6 @@ def main():
                     push_checkpoint_to_hf(ckpt_path, HF_REPO_ID, HF_CKPT_PATH_IN_REPO, HF_TOKEN)
                     print(f"  pushed to hf://{HF_REPO_ID}/{HF_CKPT_PATH_IN_REPO}")
 
-            # --- Graceful exit before Kaggle kills the session ---
             if timer.should_stop():
                 print(f"Session time limit approaching ({timer.elapsed_minutes():.1f} min elapsed).")
                 ckpt_path = os.path.join(LOCAL_CKPT_DIR, "checkpoint_session_end.pt")
