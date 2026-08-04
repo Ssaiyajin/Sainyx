@@ -1,37 +1,46 @@
 """
-Sainyx Video (Tier 1) — Dataset Builder
-Downloads tagged images from Safebooru's public API, resizes them, and
-saves them into a flat folder ready for the Tier 1 unconditional video
-DDPM (generation/video/train.py + model/video_unet.py).
+data/video/build_dataset.py
 
-Tier 1 is just a single-frame diffusion model, so this reuses the same
-approach as data/images/build_dataset.py — it's the exact same "curation
-instinct" (DBZ/anime stills), just pointed at a separate folder so the
-video and image checkpoints don't end up trained on identical data.
+Repurposed: this used to scrape flat single images for a "Tier 1"
+single-frame model — that's the exact bug the rest of this pipeline was
+fixed to avoid, so it no longer does that.
 
-IMPORTANT: unlike data/images/build_dataset.py (which nests images under
-per-tag subfolders), this saves everything FLAT directly into OUTPUT_DIR,
-because ImageFolderDataset in data/video/dataset.py only lists files in
-root_dir itself — it does not recurse into subfolders. If you change this
-to nest by tag, update ImageFolderDataset to match (see data/images/dataset.py
-for the recursive version) or your dataset will silently load 0 images.
+Now it does the whole thing in one pass: scrape stills from Safebooru
+(same source as data/images/build_dataset.py), then immediately apply the
+same Ken Burns pan/zoom treatment as build_synthetic_clips.py to turn each
+still into a clip_XXXX/frame_00.png...frame_07.png folder — the exact
+layout ClipFolderDataset expects.
 
-Run this in your Kaggle notebook (or locally) — no API key required.
+This exists alongside build_synthetic_clips.py as a second entry point:
+use this one when you want fresh stills AND clips in one step (e.g. a new
+tag list you haven't scraped before); use build_synthetic_clips.py when
+you already have stills on disk (e.g. FLAT_DIR from the image pipeline)
+and just want the clip treatment applied to what's already there.
+
+Run this in your Kaggle notebook — no API key required.
 """
 
 import os
 import time
+import random
 import requests
-from PIL import Image
 from io import BytesIO
+from PIL import Image
 
 # ── Config ──────────────────────────────────────────
-TAGS = ["dragon_ball", "son_goku", "super_saiyan", "vegeta"]   # add/change tags — e.g. "super_saiyan", "vegeta"
-IMAGES_PER_TAG = 500                  # how many to try to grab per tag
-IMAGE_SIZE = 64                       # matches IMAGE_SIZE in generation/video/train.py
-OUTPUT_DIR = "dataset_raw_video"      # kept separate from the image model's dataset_raw
-LIMIT_PER_REQUEST = 100               # Safebooru API max per page
-SLEEP_BETWEEN_REQUESTS = 1.0          # be polite to the API
+TAGS = ["dragon_ball", "son_goku", "super_saiyan", "vegeta"]
+IMAGES_PER_TAG = 500
+STILL_SIZE = 256              # download/resize stills a bit larger than the
+                               # final clip frame size, so the Ken Burns
+                               # zoom has real pixels to crop into instead
+                               # of upscaling blur
+CLIP_IMAGE_SIZE = 64          # matches CLIP_LEN/IMAGE_SIZE elsewhere in the pipeline
+CLIP_LEN = 8
+ZOOM_RANGE = (1.0, 1.3)
+PAN_RANGE = (-0.12, 0.12)
+OUTPUT_DIR = "/kaggle/working/data/video_clips"   # same layout/target as build_synthetic_clips.py
+LIMIT_PER_REQUEST = 100
+SLEEP_BETWEEN_REQUESTS = 1.0
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -55,10 +64,9 @@ def get_post_urls(tag, count):
             break
 
         if not posts:
-            break  # no more results
+            break
 
         for post in posts:
-            # Safebooru returns file_url directly in most responses
             file_url = post.get("file_url") or post.get("image")
             if file_url:
                 if file_url.startswith("//"):
@@ -71,22 +79,48 @@ def get_post_urls(tag, count):
     return urls[:count]
 
 
-def download_and_process(url, save_path, size):
-    """Download one image, convert to RGB, resize, save as PNG."""
+def download_still(url, size):
+    """Download one image, convert to RGB, resize. Returns a PIL Image or None."""
     try:
         resp = requests.get(url, timeout=15)
         resp.raise_for_status()
         img = Image.open(BytesIO(resp.content)).convert("RGB")
         img = img.resize((size, size), Image.LANCZOS)
-        img.save(save_path, "PNG")
-        return True
+        return img
     except Exception:
-        return False
+        return None
+
+
+def make_clip_from_still(img, clip_out_dir, clip_len=CLIP_LEN, image_size=CLIP_IMAGE_SIZE):
+    """Same Ken Burns treatment as build_synthetic_clips.py, applied to an
+    already-in-memory PIL Image instead of a path on disk."""
+    w, h = img.size
+    zoom_end = random.uniform(*ZOOM_RANGE)
+    dx = random.uniform(*PAN_RANGE)
+    dy = random.uniform(*PAN_RANGE)
+
+    os.makedirs(clip_out_dir, exist_ok=True)
+
+    for i in range(clip_len):
+        t = i / (clip_len - 1)
+        zoom = 1.0 + (zoom_end - 1.0) * t
+
+        crop_w, crop_h = w / zoom, h / zoom
+        cx = w / 2 + dx * w * t
+        cy = h / 2 + dy * h * t
+
+        left = min(max(0, cx - crop_w / 2), w - crop_w)
+        top = min(max(0, cy - crop_h / 2), h - crop_h)
+
+        crop = img.crop((left, top, left + crop_w, top + crop_h))
+        crop = crop.resize((image_size, image_size), Image.LANCZOS)
+        crop.save(os.path.join(clip_out_dir, f"frame_{i:02d}.png"))
 
 
 def main():
-    total_saved = 0
-    seen_urls = set()  # de-dupe across tags so overlapping results aren't saved twice
+    total_clips = 0
+    seen_urls = set()
+    clip_idx = 0
 
     for tag in TAGS:
         print(f"\n🔍 Fetching post list for tag: '{tag}'")
@@ -99,20 +133,27 @@ def main():
                 continue
             seen_urls.add(url)
 
-            save_path = os.path.join(OUTPUT_DIR, f"{tag}_{i:04d}.png")
-            if download_and_process(url, save_path, IMAGE_SIZE):
-                saved += 1
+            still = download_still(url, STILL_SIZE)
+            if still is None:
+                continue
+
+            clip_out_dir = os.path.join(OUTPUT_DIR, f"clip_{clip_idx:04d}")
+            make_clip_from_still(still, clip_out_dir)
+            clip_idx += 1
+            saved += 1
+
             if (i + 1) % 50 == 0:
-                print(f"  ...{i+1}/{len(urls)} processed, {saved} saved")
-            time.sleep(0.2)  # small delay to avoid hammering image hosts
+                print(f"  ...{i+1}/{len(urls)} processed, {saved} clips built")
+            time.sleep(0.2)
 
-        print(f"✅ '{tag}': saved {saved} images")
-        total_saved += saved
+        print(f"✅ '{tag}': built {saved} clips")
+        total_clips += saved
 
-    print(f"\n🔥 Done. Total images saved: {total_saved}")
+    print(f"\n🔥 Done. Total clips built: {total_clips}")
     print(f"Dataset location: {os.path.abspath(OUTPUT_DIR)}")
-    print(f"Point generation/video/train.py's DATA_DIR at this folder "
-          f"(or wherever you upload it as a Kaggle dataset).")
+    print("This is already the layout ClipFolderDataset expects "
+          "(clip_XXXX/frame_00.png ... frame_07.png) — point "
+          "generation/video/train.py's DATA_DIR straight at it.")
 
 
 if __name__ == "__main__":
