@@ -149,7 +149,7 @@ async function sendMessage() {
     }
 
     if (currentMode === 'video') {
-    generateVideo(message);
+        generateVideo(message);
         return;
     }
 
