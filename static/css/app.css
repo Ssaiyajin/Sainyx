@@ -105,8 +105,17 @@ header{width:100%;padding:0 24px;display:flex;align-items:center;gap:16px;border
 .cap-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border-2);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;}
 .cap-btn:hover{border-color:#00ff8844;color:var(--text);}
 .cap-btn.active{border-color:var(--green);color:var(--green);background:#00ff8811;}
-.cap-btn.soon{opacity:0.3;cursor:not-allowed;}
-.cap-btn.soon:hover{border-color:var(--border-2);color:var(--text-muted);}
+.cap-btn.soon{opacity:0.7;cursor:pointer;}
+.cap-btn.soon:hover{border-color:#00ff8844;color:var(--green);}
+
+.roadmap-card{margin:12px 24px 0;max-width:680px;width:calc(100% - 48px);padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:linear-gradient(135deg,#050510,#080820);align-self:center;}
+.roadmap-card-title{font-size:10px;color:var(--green);font-family:'Courier New', monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+.roadmap-list{display:flex;flex-direction:column;gap:8px;}
+.roadmap-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);}
+.roadmap-pill{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;font-family:'Courier New', monospace;}
+.roadmap-pill.planned{background:#00ff8811;border:1px solid #00ff8833;color:var(--green);}
+.roadmap-pill.in-progress{background:#00aaff11;border:1px solid #00aaff33;color:var(--blue);} 
+.welcome-roadmap{margin-top:20px;max-width:620px;}
 
 /* ── CHAT BOX ── */
 #chat-box{flex:1;overflow-y:auto;padding:24px 0;display:flex;flex-direction:column;gap:16px;align-items:center;}

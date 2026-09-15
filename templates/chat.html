@@ -73,9 +73,18 @@
         <button class="cap-btn" id="cap-data" onclick="setMode('data')">📊 Data Analysis</button>
         <button class="cap-btn" id="cap-scientist" onclick="setMode('scientist')">🧪 Train Model</button>
         <button class="cap-btn" id="cap-image" onclick="setMode('image')">🎨 Image Gen</button>
-        <button class="cap-btn soon" title="Coming soon">🔊 Voice Gen</button>
+        <button class="cap-btn soon" id="cap-voice" onclick="showRoadmapNotice('voice_generation')" title="Coming soon">🔊 Voice Gen</button>
         <button class="cap-btn" id="cap-video" onclick="setMode('video')">🎬 Video Gen</button>
-        <button class="cap-btn soon" title="Coming soon">🌐 API</button>
+        <button class="cap-btn soon" id="cap-api" onclick="showRoadmapNotice('api_layer')" title="Coming soon">🌐 API</button>
+    </div>
+
+    <div id="roadmap-card" class="roadmap-card">
+        <div class="roadmap-card-title">🛣️ Roadmap</div>
+        <div class="roadmap-list">
+            <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
+            <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>
+            <div class="roadmap-item"><span class="roadmap-pill in-progress">In progress</span><span>Structured API layer</span></div>
+        </div>
     </div>
 
     <div id="chat-box"></div>

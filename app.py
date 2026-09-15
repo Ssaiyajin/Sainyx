@@ -16,7 +16,30 @@ from generation.data_analysis.analyzer import analyze_csv, generate_charts, summ
 from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
 from generation.image.generate import load_model as load_diffusion_model, generate_images
+from api.api import api
+
 import config
+
+COMING_SOON_FEATURES = {
+    'voice_generation': {
+        'label': 'Voice generation',
+        'status': 'planned',
+        'summary': 'A voice synthesis layer is being prepared for a future release once a trained model is available.',
+        'eta': 'Coming soon'
+    },
+    'style_image_generation': {
+        'label': 'Styled image generation',
+        'status': 'planned',
+        'summary': 'Prompt presets for anime, game assets, and concept art are being structured for later rollout.',
+        'eta': 'Coming soon'
+    },
+    'api_layer': {
+        'label': 'API layer',
+        'status': 'in_progress',
+        'summary': 'A more structured API experience is being organized for future public access.',
+        'eta': 'Planned'
+    }
+}
 
 import requests as req
 
@@ -104,6 +127,7 @@ video_timesteps = video_result["timesteps"] if video_result else config.VIDEO_TI
 
 # ── Flask app ──────────────────────────────────────
 app = Flask(__name__)
+app.register_blueprint(api)
 
 
 # ── Routes ────────────────────────────────────────
@@ -281,6 +305,39 @@ def generate_video():
         return jsonify({'image': img_b64, 'source': 'sainyx-video-tier1'})
     except Exception as e:
         return jsonify({'error': f'Video generation failed: {e}'})
+
+
+@app.route('/generate-voice', methods=['POST'])
+def generate_voice():
+    feature = COMING_SOON_FEATURES['voice_generation']
+    return jsonify({
+        'status': 'planned',
+        'feature': 'voice_generation',
+        'label': feature['label'],
+        'message': feature['summary'],
+        'eta': feature['eta']
+    })
+
+
+@app.route('/generate-image-styled', methods=['POST'])
+def generate_image_styled():
+    feature = COMING_SOON_FEATURES['style_image_generation']
+    return jsonify({
+        'status': 'planned',
+        'feature': 'style_image_generation',
+        'label': feature['label'],
+        'message': feature['summary'],
+        'eta': feature['eta']
+    })
+
+
+@app.route('/feature-status', methods=['GET'])
+def feature_status():
+    return jsonify({
+        'status': 'planned',
+        'message': 'These capabilities are being prepared and will become available as the product roadmap expands.',
+        'features': COMING_SOON_FEATURES
+    })
 
 
 app.run(host='0.0.0.0', port=7860, debug=False)

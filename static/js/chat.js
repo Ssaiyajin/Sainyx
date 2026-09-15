@@ -42,6 +42,14 @@ function showWelcome() {
             <div class="suggestion" onclick="sendSuggestion('What is Elden Ring?')">Elden Ring</div>
             <div class="suggestion" onclick="sendSuggestion('Who is Vegeta?')">Vegeta</div>
         </div>
+        <div class="roadmap-card welcome-roadmap">
+            <div class="roadmap-card-title">🛣️ Upcoming focus</div>
+            <div class="roadmap-list">
+                <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
+                <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>
+                <div class="roadmap-item"><span class="roadmap-pill in-progress">In progress</span><span>Structured API layer</span></div>
+            </div>
+        </div>
     `;
     chatBox.appendChild(w);
 }
@@ -49,6 +57,19 @@ function showWelcome() {
 function removeWelcome() {
     const w = document.getElementById('welcome');
     if (w) w.remove();
+}
+
+function showRoadmapNotice(featureKey) {
+    const messages = {
+        voice_generation: 'Voice generation is planned and will be enabled once a trained model is available.',
+        api_layer: 'The API layer is being structured for future release and will be exposed progressively.',
+        style_image_generation: 'Styled image generation is planned and will be enabled once the image pipeline is ready.'
+    };
+
+    addBotRaw(`
+        <div class="msg-label">Sainyx</div>
+        <div class="msg-bubble">${messages[featureKey] || 'This capability is still on the roadmap.'}</div>
+    `);
 }
 
 // ── FILE ATTACH ───────────────────────────────────
