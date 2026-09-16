@@ -81,26 +81,47 @@
     <div id="roadmap-card" class="roadmap-card">
         <div id="api-guide" hidden>
             <div class="roadmap-card-title">🌐 Sainyx API</div>
-            <p class="api-guide-copy">Use the REST API from your own app or terminal.</p>
+            <p class="api-guide-copy">Call Sainyx from a terminal, backend, or HTTPS client.</p>
             <div class="api-guide-section">
-                <div class="api-guide-label">1. Configure the server</div>
-                <div class="api-code-row"><code>$env:SAINYX_API_KEY = "your-secret-key"</code><button class="api-copy" onclick="copyApiText(this, '$env:SAINYX_API_KEY = &quot;your-secret-key&quot;')" title="Copy configuration">Copy</button></div>
-                <div class="api-guide-note">Restart Sainyx after setting the environment variable. Keep this key private.</div>
+                <div class="api-guide-label">1. Your HTTPS base URL</div>
+                <div class="api-code-row"><code id="api-base-url">Loading URL...</code><button class="api-copy" onclick="copyApiBaseUrl(this)" title="Copy API URL">Copy</button></div>
+                <div class="api-guide-note">This URL is the current Sainyx Space address. Keep <strong>/api/v1</strong> at the end.</div>
             </div>
             <div class="api-guide-section">
-                <div class="api-guide-label">2. Check availability</div>
-                <div class="api-code-row"><code>GET /api/v1/status</code><button class="api-copy" onclick="copyApiText(this, 'http://localhost:7860/api/v1/status')" title="Copy status URL">Copy</button></div>
+                <div class="api-guide-label">2. Create the server key</div>
+                <div class="api-code-row api-code-block"><code>python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+Hugging Face Space:
+Settings → Secrets and variables → New secret
+Name: SAINYX_API_KEY
+Value: paste the generated key</code><button class="api-copy" onclick="copyApiText(this, 'python -c &quot;import secrets; print(secrets.token_urlsafe(32))&quot;')" title="Copy key command">Copy</button></div>
+                <div class="api-guide-note">The API key is created by you, not by the Hugging Face token. Never put it in public frontend code.</div>
             </div>
             <div class="api-guide-section">
-                <div class="api-guide-label">3. Generate content</div>
-                <div class="api-code-row api-code-block"><code>POST /api/v1/generate
-X-API-Key: your-secret-key
-{ "type": "voice", "text": "Hello from Sainyx" }</code><button class="api-copy" onclick="copyApiRequest(this)" title="Copy curl request">Copy</button></div>
+                <div class="api-guide-label">3. Check the server</div>
+                <div class="api-code-row api-code-block"><code id="api-status-command">curl https://your-space.hf.space/api/v1/status</code><button class="api-copy" onclick="copyApiStatus(this)" title="Copy status command">Copy</button></div>
+                <div class="api-guide-note">Status is public and reports whether text, image, video, and voice are available.</div>
             </div>
-            <div class="api-types"><span>text</span><span>image</span><span>video</span><span>voice</span></div>
-            <div class="api-guide-note">Video requires a trained video checkpoint. Voice is available without one.</div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">4. Call the generation API</div>
+                <div class="api-code-row api-code-block"><code id="api-voice-command">curl -X POST https://your-space.hf.space/api/v1/generate \
+  -H "X-API-Key: your-generated-key" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"voice","text":"Hello from Sainyx"}'</code><button class="api-copy" onclick="copyApiVoice(this)" title="Copy voice request">Copy</button></div>
+                <div class="api-guide-note">The response contains <strong>audio_base64</strong> for voice, <strong>image_base64</strong> for image/video, and <strong>text</strong> for text.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">5. PowerShell alternative</div>
+                <div class="api-code-row api-code-block"><code id="api-powershell-command">$headers = @{ "X-API-Key" = "your-generated-key" }
+Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"voice","text":"Hello from Sainyx"}'</code><button class="api-copy" onclick="copyApiPowerShell(this)" title="Copy PowerShell request">Copy</button></div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">Available types</div>
+                <div class="api-types"><span>text</span><span>image</span><span>video</span><span>voice</span></div>
+                <div class="api-guide-note">Video requires a trained video checkpoint. Voice works without a trained model. The Space must be running and public for colleagues to reach it.</div>
+            </div>
         </div>
-        <div class="roadmap-card-title">🛣️ Roadmap</div>
+        <div id="roadmap-title" class="roadmap-card-title">🛣️ Roadmap</div>
         <div id="roadmap-list" class="roadmap-list">
             <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
             <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>

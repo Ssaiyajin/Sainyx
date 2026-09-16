@@ -17,8 +17,10 @@ function setMode(mode, { manual = true } = {}) {
     currentMode = mode;
     autoSwitched = !manual;
     const apiGuide = document.getElementById('api-guide');
+    const roadmapTitle = document.getElementById('roadmap-title');
     const roadmapList = document.getElementById('roadmap-list');
     if (apiGuide) apiGuide.hidden = mode !== 'api';
+    if (roadmapTitle) roadmapTitle.hidden = mode === 'api';
     if (roadmapList) roadmapList.hidden = mode === 'api';
     document.querySelectorAll('.cap-btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('cap-' + mode);
@@ -39,7 +41,6 @@ function setMode(mode, { manual = true } = {}) {
         document.getElementById('file-input').click();
     }
 }
-
 function showRoadmapNotice(feature) {
     const notices = {
         voice_generation: 'A voice synthesis layer is being prepared for a future release once a trained model is available. <em>Coming soon</em>',
@@ -288,11 +289,61 @@ function showCSVOptions(file) {
 
 function showApiGuide() {
     const guide = document.getElementById('api-guide');
+    const roadmapTitle = document.getElementById('roadmap-title');
     const roadmap = document.getElementById('roadmap-list');
     const card = document.getElementById('roadmap-card');
     if (guide) guide.hidden = false;
+    if (roadmapTitle) roadmapTitle.hidden = true;
     if (roadmap) roadmap.hidden = true;
+    updateApiGuide();
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateApiGuide() {
+    const baseUrl = getApiBaseUrl();
+    const base = document.getElementById('api-base-url');
+    const status = document.getElementById('api-status-command');
+    const voice = document.getElementById('api-voice-command');
+    const powershell = document.getElementById('api-powershell-command');
+    const curlCommand = [
+        `curl -X POST ${baseUrl}/generate`,
+        '  -H "X-API-Key: your-generated-key"',
+        '  -H "Content-Type: application/json"',
+        '  -d \'{"type":"voice","text":"Hello from Sainyx"}\''
+    ].join('\n');
+    if (base) base.textContent = baseUrl;
+    if (status) status.textContent = `curl ${baseUrl}/status`;
+    if (voice) voice.textContent = curlCommand;
+    if (powershell) powershell.textContent = `$headers = @{ "X-API-Key" = "your-generated-key" }\nInvoke-RestMethod -Method Post -Uri "${baseUrl}/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"voice","text":"Hello from Sainyx"}'`;
+}
+
+function getApiBaseUrl() {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.hostname === 'huggingface.co') {
+        const spaceParts = currentUrl.pathname.split('/').filter(Boolean);
+        if (spaceParts[0] === 'spaces' && spaceParts.length >= 3) {
+            return `https://${spaceParts[1]}-${spaceParts[2]}.hf.space/api/v1`;
+        }
+    }
+    return `${currentUrl.origin}/api/v1`;
+}
+
+function copyApiBaseUrl(button) {
+    copyApiText(button, getApiBaseUrl());
+}
+
+function copyApiStatus(button) {
+    copyApiText(button, `curl ${getApiBaseUrl()}/status`);
+}
+
+function copyApiVoice(button) {
+    const baseUrl = getApiBaseUrl();
+    copyApiText(button, `curl -X POST ${baseUrl}/generate -H "X-API-Key: your-generated-key" -H "Content-Type: application/json" -d '{"type":"voice","text":"Hello from Sainyx"}'`);
+}
+
+function copyApiPowerShell(button) {
+    const baseUrl = getApiBaseUrl();
+    copyApiText(button, `$headers = @{ "X-API-Key" = "your-generated-key" }; Invoke-RestMethod -Method Post -Uri "${baseUrl}/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"voice","text":"Hello from Sainyx"}'`);
 }
 
 async function copyApiText(button, text) {
@@ -306,10 +357,3 @@ async function copyApiText(button, text) {
     }
 }
 
-function copyApiRequest(button) {
-    const request = 'curl -X POST http://localhost:7860/api/v1/generate '
-        + '-H "X-API-Key: your-secret-key" '
-        + '-H "Content-Type: application/json" '
-        + '-d \'{"type":"voice","text":"Hello from Sainyx"}\'';
-    copyApiText(button, request);
-}
