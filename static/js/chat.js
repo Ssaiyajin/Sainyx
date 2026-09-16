@@ -14,7 +14,6 @@ const input   = document.getElementById('user-input');
 // passes { manual: false } explicitly, which is what makes the later
 // "revert to chat" logic able to tell the two cases apart.
 function setMode(mode, { manual = true } = {}) {
-    if (document.getElementById('cap-' + mode)?.classList.contains('soon')) return;
     currentMode = mode;
     autoSwitched = !manual;
     document.querySelectorAll('.cap-btn').forEach(b => b.classList.remove('active'));
@@ -26,13 +25,23 @@ function setMode(mode, { manual = true } = {}) {
         data:      'Attach a CSV to analyze →',
         scientist: 'Attach a CSV to train a model →',
         image:     'Describe what to generate... e.g. "Goku ultra instinct, anime art, 4k',
-        video:     'Describe the frame to generate... (Tier 1 — single unconditional frame)'
+        video:     'Describe the frame to generate... (Tier 1 — single unconditional frame)',
+        voice:     'Enter text for voice generation...',
+        api:       'API mode is in development...'
     };
     input.placeholder = hints[mode] || 'Ask anything...';
 
     if (mode === 'data' || mode === 'scientist') {
         document.getElementById('file-input').click();
     }
+}
+
+function showRoadmapNotice(feature) {
+    const notices = {
+        voice_generation: 'A voice synthesis layer is being prepared for a future release once a trained model is available. <em>Coming soon</em>',
+        api_layer: 'A more structured API experience is being organized for future public access. <em>Planned</em>'
+    };
+    if (notices[feature]) addBotMsg(notices[feature]);
 }
 
 // ── WELCOME ───────────────────────────────────────
@@ -134,6 +143,12 @@ async function sendMessage() {
 
     startOverlay();
 
+    if (currentMode === 'voice' || currentMode === 'api') {
+        stopOverlay();
+        showRoadmapNotice(currentMode === 'voice' ? 'voice_generation' : 'api_layer');
+        return;
+    }
+
     // CSV attached
     if (file && file.name.endsWith('.csv')) {
         currentCSVFile = file;
@@ -150,27 +165,33 @@ async function sendMessage() {
         return;
     }
 
-    // Image: auto-detected from chat, or already in the Image Gen tab
-    if (currentMode === 'chat' && isImageRequest(message)) {
-        setMode('image', { manual: false });
-        await generateImage(extractImagePrompt(message));
-        if (autoSwitched) setMode('chat', { manual: false });
-        return;
-    }
-    if (currentMode === 'image') {
-        generateImage(message);
-        return;
-    }
-
     // Video: auto-detected from chat, or already in the Video Gen tab
     if (currentMode === 'chat' && isVideoRequest(message)) {
         setMode('video', { manual: false });
-        await generateVideo(message);
-        if (autoSwitched) setMode('chat', { manual: false });
+        try {
+            await generateVideo(message);
+        } finally {
+            if (autoSwitched) setMode('chat', { manual: false });
+        }
         return;
     }
     if (currentMode === 'video') {
         generateVideo(message);
+        return;
+    }
+
+    // Image: auto-detected from chat, or already in the Image Gen tab
+    if (currentMode === 'chat' && isImageRequest(message)) {
+        setMode('image', { manual: false });
+        try {
+            await generateImage(extractImagePrompt(message));
+        } finally {
+            if (autoSwitched) setMode('chat', { manual: false });
+        }
+        return;
+    }
+    if (currentMode === 'image') {
+        generateImage(message);
         return;
     }
 

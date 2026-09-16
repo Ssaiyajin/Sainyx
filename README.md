@@ -22,7 +22,7 @@ Sainyx is not just a chatbot. It's a full AI platform:
 - 📊 Data science gateway (Pandas, Matplotlib, PDF reports)
 - 🎨 Image generation (Stable Diffusion) — coming soon
 - 🎬 Video generation (ModelScope) — coming soon
-- 🌐 REST API for developers — coming soon
+- 🌐 REST API for developers
 
 ## Current Status
 - ✅ GPT transformer built from scratch (5M parameters)
@@ -33,7 +33,26 @@ Sainyx is not just a chatbot. It's a full AI platform:
 - ✅ Deployed on Hugging Face
 - 🔲 Image generation module
 - 🔲 Video generation module
-- 🔲 REST API
+- ✅ REST API (`/api/v1/status` and `/api/v1/generate`)
+
+## REST API
+
+Check available generators without authentication:
+
+```bash
+curl http://localhost:7860/api/v1/status
+```
+
+Set `SAINYX_API_KEY` on the server, then send the key with generation requests:
+
+```bash
+curl -X POST http://localhost:7860/api/v1/generate \
+	-H "X-API-Key: $SAINYX_API_KEY" \
+	-H "Content-Type: application/json" \
+	-d '{"type":"text","prompt":"Who is Goku?","max_tokens":80}'
+```
+
+Supported generation types are `text`, `image`, and `video`. Model availability is reported by the status endpoint.
 
 ## Stack
 All free. No paid APIs. Ever.

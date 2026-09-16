@@ -66,10 +66,20 @@ def require_api_key(view_func: Callable) -> Callable:
 # This is the only place that changes when a new generation type ships.
 
 def _generate_text(body: dict) -> Tuple[dict, int]:
-    prompt = body.get("prompt", "").strip()
-    max_new_tokens = min(int(body.get("max_tokens", 80)), 500)
+    prompt = body.get("prompt", "")
+    if not isinstance(prompt, str):
+        return {"error": "prompt must be a string"}, 400
+    prompt = prompt.strip()
     if not prompt:
         return {"error": "prompt is required"}, 400
+
+    try:
+        max_new_tokens = min(int(body.get("max_tokens", 80)), 500)
+    except (TypeError, ValueError):
+        return {"error": "max_tokens must be an integer"}, 400
+
+    if max_new_tokens < 1:
+        return {"error": "max_tokens must be at least 1"}, 400
 
     model, vocab = get_text_model()
     encode, decode = vocab["encode"], vocab["decode"]
@@ -152,7 +162,12 @@ GENERATORS: Dict[str, GenerationType] = {
 @require_api_key
 def generate():
     body = request.get_json(silent=True) or {}
-    gen_type = body.get("type", "").strip().lower()
+    if not isinstance(body, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    gen_type = body.get("type", "")
+    if not isinstance(gen_type, str):
+        return jsonify({"error": "type must be a string"}), 400
+    gen_type = gen_type.strip().lower()
 
     entry = GENERATORS.get(gen_type)
     if entry is None:
