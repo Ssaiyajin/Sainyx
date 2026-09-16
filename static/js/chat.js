@@ -1,15 +1,22 @@
 // ── STATE ─────────────────────────────────────────
 let attachedFile  = null;
 let currentMode   = 'chat';
+let autoSwitched  = false; // true only when currentMode was reached via an
+                            // automatic chat-intent redirect, not a manual tab click
 let currentCSVFile = null;
 
 const chatBox = document.getElementById('chat-box');
 const input   = document.getElementById('user-input');
 
 // ── CAPABILITY BAR ────────────────────────────────
-function setMode(mode) {
+// manual=true (the default) is what every onclick="setMode('x')" in chat.html
+// already calls, so no HTML changes are needed. Auto-routing from sendMessage()
+// passes { manual: false } explicitly, which is what makes the later
+// "revert to chat" logic able to tell the two cases apart.
+function setMode(mode, { manual = true } = {}) {
     if (document.getElementById('cap-' + mode)?.classList.contains('soon')) return;
     currentMode = mode;
+    autoSwitched = !manual;
     document.querySelectorAll('.cap-btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('cap-' + mode);
     if (btn) btn.classList.add('active');
@@ -42,14 +49,6 @@ function showWelcome() {
             <div class="suggestion" onclick="sendSuggestion('What is Elden Ring?')">Elden Ring</div>
             <div class="suggestion" onclick="sendSuggestion('Who is Vegeta?')">Vegeta</div>
         </div>
-        <div class="roadmap-card welcome-roadmap">
-            <div class="roadmap-card-title">🛣️ Upcoming focus</div>
-            <div class="roadmap-list">
-                <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
-                <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>
-                <div class="roadmap-item"><span class="roadmap-pill in-progress">In progress</span><span>Structured API layer</span></div>
-            </div>
-        </div>
     `;
     chatBox.appendChild(w);
 }
@@ -57,19 +56,6 @@ function showWelcome() {
 function removeWelcome() {
     const w = document.getElementById('welcome');
     if (w) w.remove();
-}
-
-function showRoadmapNotice(featureKey) {
-    const messages = {
-        voice_generation: 'Voice generation is planned and will be enabled once a trained model is available.',
-        api_layer: 'The API layer is being structured for future release and will be exposed progressively.',
-        style_image_generation: 'Styled image generation is planned and will be enabled once the image pipeline is ready.'
-    };
-
-    addBotRaw(`
-        <div class="msg-label">Sainyx</div>
-        <div class="msg-bubble">${messages[featureKey] || 'This capability is still on the roadmap.'}</div>
-    `);
 }
 
 // ── FILE ATTACH ───────────────────────────────────
@@ -163,12 +149,26 @@ async function sendMessage() {
         }
         return;
     }
-    if (currentMode === 'image' || (currentMode === 'chat' && isImageRequest(message))) {
-    const prompt = currentMode === 'image' ? message : extractImagePrompt(message);
-    generateImage(prompt);
-    return;
+
+    // Image: auto-detected from chat, or already in the Image Gen tab
+    if (currentMode === 'chat' && isImageRequest(message)) {
+        setMode('image', { manual: false });
+        await generateImage(extractImagePrompt(message));
+        if (autoSwitched) setMode('chat', { manual: false });
+        return;
+    }
+    if (currentMode === 'image') {
+        generateImage(message);
+        return;
     }
 
+    // Video: auto-detected from chat, or already in the Video Gen tab
+    if (currentMode === 'chat' && isVideoRequest(message)) {
+        setMode('video', { manual: false });
+        await generateVideo(message);
+        if (autoSwitched) setMode('chat', { manual: false });
+        return;
+    }
     if (currentMode === 'video') {
         generateVideo(message);
         return;

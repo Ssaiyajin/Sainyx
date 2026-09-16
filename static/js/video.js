@@ -40,6 +40,18 @@ async function generateVideo(message) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
+// Mirrors isImageRequest() in image.js - same pattern, video-specific triggers.
+// Only matters while in 'chat' mode; once video generation is truly conditioned
+// on a prompt (past Tier 1), extractVideoPrompt() can be added the same way
+// extractImagePrompt() works today.
+function isVideoRequest(msg) {
+    const triggers = [
+        'generate video', 'create video', 'make a video', 'make video',
+        'generate a video', 'create a video', 'video of', 'animate this'
+    ];
+    return triggers.some(t => msg.toLowerCase().includes(t));
+}
+
 function downloadVideoFrame(btn) {
     const a = document.createElement('a');
     a.href = 'data:image/png;base64,' + btn.dataset.img;
