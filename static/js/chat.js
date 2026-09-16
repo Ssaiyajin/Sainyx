@@ -16,6 +16,10 @@ const input   = document.getElementById('user-input');
 function setMode(mode, { manual = true } = {}) {
     currentMode = mode;
     autoSwitched = !manual;
+    const apiGuide = document.getElementById('api-guide');
+    const roadmapList = document.getElementById('roadmap-list');
+    if (apiGuide) apiGuide.hidden = mode !== 'api';
+    if (roadmapList) roadmapList.hidden = mode === 'api';
     document.querySelectorAll('.cap-btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('cap-' + mode);
     if (btn) btn.classList.add('active');
@@ -27,7 +31,7 @@ function setMode(mode, { manual = true } = {}) {
         image:     'Describe what to generate... e.g. "Goku ultra instinct, anime art, 4k',
         video:     'Describe the frame to generate... (Tier 1 — single unconditional frame)',
         voice:     'Enter text for voice generation...',
-        api:       'API mode is in development...'
+        api:       'Use the API guide above...'
     };
     input.placeholder = hints[mode] || 'Ask anything...';
 
@@ -280,4 +284,32 @@ function showCSVOptions(file) {
             <button class="act-btn" onclick="this.closest('.msg-wrap').remove()">✕ Cancel</button>
         </div>
     `);
+}
+
+function showApiGuide() {
+    const guide = document.getElementById('api-guide');
+    const roadmap = document.getElementById('roadmap-list');
+    const card = document.getElementById('roadmap-card');
+    if (guide) guide.hidden = false;
+    if (roadmap) roadmap.hidden = true;
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function copyApiText(button, text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        const original = button.textContent;
+        button.textContent = 'Copied';
+        setTimeout(() => { button.textContent = original; }, 1200);
+    } catch {
+        button.textContent = 'Copy failed';
+    }
+}
+
+function copyApiRequest(button) {
+    const request = 'curl -X POST http://localhost:7860/api/v1/generate '
+        + '-H "X-API-Key: your-secret-key" '
+        + '-H "Content-Type: application/json" '
+        + '-d \'{"type":"voice","text":"Hello from Sainyx"}\'';
+    copyApiText(button, request);
 }

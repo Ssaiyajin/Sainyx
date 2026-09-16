@@ -73,14 +73,35 @@
         <button class="cap-btn" id="cap-data" onclick="setMode('data')">📊 Data Analysis</button>
         <button class="cap-btn" id="cap-scientist" onclick="setMode('scientist')">🧪 Train Model</button>
         <button class="cap-btn" id="cap-image" onclick="setMode('image')">🎨 Image Gen</button>
-        <button class="cap-btn" id="cap-voice" onclick="setMode('voice'); showRoadmapNotice('voice_generation')">🔊 Voice Gen</button>
+        <button class="cap-btn" id="cap-voice" onclick="setMode('voice')">🔊 Voice Gen</button>
         <button class="cap-btn" id="cap-video" onclick="setMode('video')">🎬 Video Gen</button>
-        <button class="cap-btn" id="cap-api" onclick="setMode('api'); showRoadmapNotice('api_layer')">🌐 API</button>
+        <button class="cap-btn" id="cap-api" onclick="setMode('api'); showApiGuide()">🌐 API</button>
     </div>
 
     <div id="roadmap-card" class="roadmap-card">
+        <div id="api-guide" hidden>
+            <div class="roadmap-card-title">🌐 Sainyx API</div>
+            <p class="api-guide-copy">Use the REST API from your own app or terminal.</p>
+            <div class="api-guide-section">
+                <div class="api-guide-label">1. Configure the server</div>
+                <div class="api-code-row"><code>$env:SAINYX_API_KEY = "your-secret-key"</code><button class="api-copy" onclick="copyApiText(this, '$env:SAINYX_API_KEY = &quot;your-secret-key&quot;')" title="Copy configuration">Copy</button></div>
+                <div class="api-guide-note">Restart Sainyx after setting the environment variable. Keep this key private.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">2. Check availability</div>
+                <div class="api-code-row"><code>GET /api/v1/status</code><button class="api-copy" onclick="copyApiText(this, 'http://localhost:7860/api/v1/status')" title="Copy status URL">Copy</button></div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">3. Generate content</div>
+                <div class="api-code-row api-code-block"><code>POST /api/v1/generate
+X-API-Key: your-secret-key
+{ "type": "voice", "text": "Hello from Sainyx" }</code><button class="api-copy" onclick="copyApiRequest(this)" title="Copy curl request">Copy</button></div>
+            </div>
+            <div class="api-types"><span>text</span><span>image</span><span>video</span><span>voice</span></div>
+            <div class="api-guide-note">Video requires a trained video checkpoint. Voice is available without one.</div>
+        </div>
         <div class="roadmap-card-title">🛣️ Roadmap</div>
-        <div class="roadmap-list">
+        <div id="roadmap-list" class="roadmap-list">
             <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
             <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>
             <div class="roadmap-item"><span class="roadmap-pill in-progress">In progress</span><span>Structured API layer</span></div>
