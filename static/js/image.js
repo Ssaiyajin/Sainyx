@@ -37,7 +37,6 @@ async function generateImage(prompt) {
             <div style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--border);flex-wrap:wrap;">
                 <button class="act-btn primary" onclick="downloadImage(this)">⬇ Download</button>
                 <button class="act-btn" onclick="generateImage('${safePrompt}')">↺ Regenerate</button>
-                <button class="act-btn" onclick="generateImage('${safePrompt}, game asset, transparent background')">🎮 Game Asset</button>
                 <button class="act-btn" onclick="generateImage('${safePrompt}, concept art')">🎭 Concept Art</button>
             </div>
         </div>

@@ -1,7 +1,6 @@
 import os
 import io
 import base64
-import urllib.parse
 
 import pandas as pd
 import torch
@@ -9,7 +8,7 @@ from generation.video.diffusion import NoiseScheduler
 from torchvision.utils import save_image
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
-from huggingface_hub import InferenceClient, hf_hub_download
+from huggingface_hub import hf_hub_download
 
 from model.gpt import Sainyx, BLOCK_SIZE
 from generation.data_analysis.analyzer import analyze_csv, generate_charts, summarize
@@ -41,9 +40,6 @@ COMING_SOON_FEATURES = {
         'eta': 'Planned'
     }
 }
-
-import requests as req
-
 
 # ── Load text model + vocab together ───────────────
 device = config.DEVICE
@@ -113,9 +109,6 @@ if diffusion_model_path:
         diffusion_model_path, device=device
     )
 
-
-# ── Image generation client (Pollinations fallback) ─
-image_client = InferenceClient(token=config.HF_TOKEN)
 
 # ── Load video model (Tier 1, unconditional, may not exist yet) ─────
 from core.models.factory import get_video_model
@@ -258,34 +251,20 @@ def generate_image():
     if not prompt:
         return jsonify({'error': 'No prompt provided'})
 
-    use_own_model = data.get('use_own_model', False)
+    if diffusion_model is None:
+        return jsonify({'error': 'Sainyx image model is not available. Add the image checkpoint and restart the Space.'}), 503
 
-    if use_own_model and diffusion_model is not None:
-        try:
-            samples = generate_images(
-                diffusion_model, image_size=diffusion_image_size,
-                timesteps=diffusion_timesteps, num_images=1, device=device
-            )
-            buffer = io.BytesIO()
-            save_image(samples, buffer, format='PNG')
-            img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-            return jsonify({'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion'})
-        except Exception as e:
-            return jsonify({'error': f'Sainyx model generation failed: {e}'})
-
-    # Fallback: Pollinations
-    enhanced = f"{prompt}, digital art, high quality, detailed, 4k, artstation"
     try:
-        encoded_prompt = urllib.parse.quote(enhanced)
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
-        response = req.get(url, timeout=60)
-        if response.status_code == 200:
-            img_b64 = base64.b64encode(response.content).decode('utf-8')
-            return jsonify({'image': img_b64, 'prompt': enhanced, 'source': 'pollinations'})
-        else:
-            return jsonify({'error': f'Generation failed ({response.status_code})'})
+        samples = generate_images(
+            diffusion_model, image_size=diffusion_image_size,
+            timesteps=diffusion_timesteps, num_images=1, device=device
+        )
+        buffer = io.BytesIO()
+        save_image(samples, buffer, format='PNG')
+        img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return jsonify({'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion'})
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': f'Sainyx model generation failed: {e}'}), 500
 
 @app.route('/generate-video', methods=['POST'])
 def generate_video():

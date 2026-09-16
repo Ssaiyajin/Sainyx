@@ -4,6 +4,7 @@ let currentMode   = 'chat';
 let autoSwitched  = false; // true only when currentMode was reached via an
                             // automatic chat-intent redirect, not a manual tab click
 let currentCSVFile = null;
+let messageQueue = Promise.resolve();
 
 const chatBox = document.getElementById('chat-box');
 const input   = document.getElementById('user-input');
@@ -176,7 +177,16 @@ input.addEventListener('input', () => {
 input.addEventListener('keydown', (e) => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
 // ── SEND ──────────────────────────────────────────
-async function sendMessage() {
+function sendMessage() {
+    messageQueue = messageQueue.then(processMessage).catch(error => {
+        stopOverlay();
+        removeTyping();
+        addBotMsg('❌ ' + (error.message || 'Request failed'));
+    });
+    return messageQueue;
+}
+
+async function processMessage() {
     const message = input.value.trim();
     const file    = attachedFile;
 
