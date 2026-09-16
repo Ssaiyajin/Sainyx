@@ -29,6 +29,7 @@ from torchvision.utils import save_image
 
 import config
 from core.models.factory import get_image_model, get_text_model, get_video_model
+from generation.audio.voice import generate_voice_audio
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -144,6 +145,25 @@ def _generate_video(body: dict) -> Tuple[dict, int]:
     return {"image_base64": image_b64, "source": "sainyx-video-tier1"}, 200
 
 
+def _generate_voice(body: dict) -> Tuple[dict, int]:
+    text = body.get("text", body.get("prompt", ""))
+    if not isinstance(text, str) or not text.strip():
+        return {"error": "text is required"}, 400
+
+    voice = body.get("voice", "neutral")
+    if not isinstance(voice, str):
+        return {"error": "voice must be a string"}, 400
+
+    audio = generate_voice_audio(text.strip(), voice=voice.strip() or "neutral")
+    return {
+        "text": text.strip(),
+        "voice": voice.strip() or "neutral",
+        "audio_base64": base64.b64encode(audio).decode("ascii"),
+        "mime_type": "audio/wav",
+        "source": "sainyx-synthetic-voice",
+    }, 200
+
+
 class GenerationType(NamedTuple):
     generate: Callable[[dict], Tuple[dict, int]]
     is_available: Callable[[], bool]
@@ -153,6 +173,7 @@ GENERATORS: Dict[str, GenerationType] = {
     "text": GenerationType(_generate_text, is_available=lambda: True),
     "image": GenerationType(_generate_image, is_available=lambda: get_image_model() is not None),
     "video": GenerationType(_generate_video, is_available=lambda: get_video_model() is not None),
+    "voice": GenerationType(_generate_voice, is_available=lambda: True),
 }
 
 

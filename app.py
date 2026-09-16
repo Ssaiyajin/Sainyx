@@ -16,6 +16,7 @@ from generation.data_analysis.analyzer import analyze_csv, generate_charts, summ
 from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
 from generation.image.generate import load_model as load_diffusion_model, generate_images
+from generation.audio.voice import generate_voice_audio
 from api.api import api
 
 import config
@@ -309,13 +310,23 @@ def generate_video():
 
 @app.route('/generate-voice', methods=['POST'])
 def generate_voice():
-    feature = COMING_SOON_FEATURES['voice_generation']
+    data = request.get_json(silent=True) or {}
+    text = data.get('text', data.get('prompt', ''))
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({'error': 'Text is required'}), 400
+
+    voice = data.get('voice', 'neutral')
+    if not isinstance(voice, str):
+        return jsonify({'error': 'Voice must be a string'}), 400
+
+    audio = generate_voice_audio(text.strip(), voice=voice.strip() or 'neutral')
     return jsonify({
-        'status': 'planned',
-        'feature': 'voice_generation',
-        'label': feature['label'],
-        'message': feature['summary'],
-        'eta': feature['eta']
+        'status': 'ready',
+        'text': text.strip(),
+        'voice': voice.strip() or 'neutral',
+        'audio_base64': base64.b64encode(audio).decode('ascii'),
+        'mime_type': 'audio/wav',
+        'source': 'sainyx-synthetic-voice'
     })
 
 

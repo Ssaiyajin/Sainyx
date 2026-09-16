@@ -52,7 +52,7 @@ curl -X POST http://localhost:7860/api/v1/generate \
 	-d '{"type":"text","prompt":"Who is Goku?","max_tokens":80}'
 ```
 
-Supported generation types are `text`, `image`, and `video`. Model availability is reported by the status endpoint.
+Supported generation types are `text`, `image`, `video`, and `voice`. Video availability depends on the trained checkpoint; voice uses Sainyx's lightweight WAV generator.
 
 ## Stack
 All free. No paid APIs. Ever.

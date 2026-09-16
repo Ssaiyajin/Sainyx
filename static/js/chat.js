@@ -69,7 +69,16 @@ async function generateVoice(message) {
         body: JSON.stringify({ text: message })
     });
     const data = await res.json();
-    if (data.message) addBotMsg(`${data.message} <em>${data.eta || ''}</em>`);
+    if (data.error) {
+        addBotMsg('❌ ' + data.error);
+        return;
+    }
+
+    const wrap = addBotMsg(`
+        <div>🔊 Voice generation ready</div>
+        <audio controls style="width:100%;margin-top:10px;" src="data:${data.mime_type};base64,${data.audio_base64}"></audio>
+    `);
+    wrap.querySelector('audio')?.play().catch(() => {});
 }
 
 // ── WELCOME ───────────────────────────────────────
