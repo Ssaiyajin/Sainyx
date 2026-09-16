@@ -44,6 +44,34 @@ function showRoadmapNotice(feature) {
     if (notices[feature]) addBotMsg(notices[feature]);
 }
 
+function detectRequestMode(message) {
+    const normalized = message.toLowerCase().replace(/[!?.,]/g, ' ');
+    if (/\b(video|animation|animate)\b/.test(normalized) &&
+        /\b(make|create|generate|animate|show)\b/.test(normalized)) {
+        return 'video';
+    }
+    if (/\b(voice|speech|audio)\b/.test(normalized) &&
+        /\b(make|create|generate|convert|read|speak)\b/.test(normalized)) {
+        return 'voice';
+    }
+    if (/\b(image|picture|drawing|art|illustration)\b/.test(normalized) &&
+        /\b(make|create|generate|draw|paint|illustrate|render|design|show)\b/.test(normalized)) {
+        return 'image';
+    }
+    return null;
+}
+
+async function generateVoice(message) {
+    addBotMsg(`Voice generation: <em>${message}</em>...`);
+    const res = await fetch('/generate-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message })
+    });
+    const data = await res.json();
+    if (data.message) addBotMsg(`${data.message} <em>${data.eta || ''}</em>`);
+}
+
 // ── WELCOME ───────────────────────────────────────
 function showWelcome() {
     const w = document.createElement('div');
@@ -165,31 +193,31 @@ async function sendMessage() {
         return;
     }
 
-    // Video: auto-detected from chat, or already in the Video Gen tab
-    if (currentMode === 'chat' && isVideoRequest(message)) {
-        setMode('video', { manual: false });
+    // Media requests from Chat temporarily switch to the matching tab.
+    const requestedMode = currentMode === 'chat' ? detectRequestMode(message) : null;
+    if (requestedMode) {
+        setMode(requestedMode, { manual: false });
         try {
-            await generateVideo(message);
+            if (requestedMode === 'video') {
+                await generateVideo(message);
+            } else if (requestedMode === 'image') {
+                await generateImage(extractImagePrompt(message));
+            } else {
+                await generateVoice(message);
+            }
         } finally {
             if (autoSwitched) setMode('chat', { manual: false });
         }
         return;
     }
+
+    // Video: manually selected Video mode stays selected after generation.
     if (currentMode === 'video') {
         generateVideo(message);
         return;
     }
 
-    // Image: auto-detected from chat, or already in the Image Gen tab
-    if (currentMode === 'chat' && isImageRequest(message)) {
-        setMode('image', { manual: false });
-        try {
-            await generateImage(extractImagePrompt(message));
-        } finally {
-            if (autoSwitched) setMode('chat', { manual: false });
-        }
-        return;
-    }
+    // Image: manually selected Image mode stays selected after generation.
     if (currentMode === 'image') {
         generateImage(message);
         return;
