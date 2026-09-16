@@ -168,7 +168,11 @@ function removeTyping() { const t = document.getElementById('typing'); if (t) t.
 function sendSuggestion(text) { input.value = text; sendMessage(); }
 
 // ── INPUT HANDLING ────────────────────────────────
-input.addEventListener('input', () => { input.style.height='auto'; input.style.height=input.scrollHeight+'px'; });
+input.addEventListener('input', () => {
+    if (currentMode === 'api' && input.value.trim()) setMode('chat');
+    input.style.height='auto';
+    input.style.height=input.scrollHeight+'px';
+});
 input.addEventListener('keydown', (e) => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
 // ── SEND ──────────────────────────────────────────
@@ -183,9 +187,13 @@ async function sendMessage() {
     input.style.height = 'auto';
     removeFile();
 
+    if (currentMode === 'api') {
+        setMode('chat');
+    }
+
     startOverlay();
 
-    if (currentMode === 'voice' || currentMode === 'api') {
+    if (currentMode === 'voice') {
         stopOverlay();
         showRoadmapNotice(currentMode === 'voice' ? 'voice_generation' : 'api_layer');
         return;
@@ -297,6 +305,16 @@ function showApiGuide() {
     if (roadmap) roadmap.hidden = true;
     updateApiGuide();
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleApiGuide() {
+    const guide = document.getElementById('api-guide');
+    if (currentMode === 'api' && guide && !guide.hidden) {
+        setMode('chat');
+        return;
+    }
+    setMode('api');
+    showApiGuide();
 }
 
 function updateApiGuide() {
