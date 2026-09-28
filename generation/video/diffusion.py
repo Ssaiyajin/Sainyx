@@ -56,7 +56,7 @@ class NoiseScheduler:
         return noisy, noise
 
     @torch.no_grad()
-    def sample_step(self, model, x, t, t_index, cond=None):
+    def sample_step(self, model, x, t, t_index, cond=None, generator=None):
         betas_t = self._extract(self.betas, t, x.shape)
         sqrt_one_minus_alphas_cumprod_t = self._extract(
             self.sqrt_one_minus_alphas_cumprod, t, x.shape
@@ -73,13 +73,15 @@ class NoiseScheduler:
             return model_mean
 
         posterior_variance_t = self._extract(self.posterior_variance, t, x.shape)
-        noise = torch.randn_like(x)
+        noise = torch.randn(
+            x.shape, device=x.device, dtype=x.dtype, generator=generator
+        )
         return model_mean + torch.sqrt(posterior_variance_t) * noise
 
     @torch.no_grad()
     def sample(
         self, model, image_size, batch_size=1, channels=3,
-        num_frames=None, cond=None, device="cuda",
+        num_frames=None, cond=None, device="cuda", generator=None,
     ):
         """
         num_frames=None -> Tier 1 behaviour, returns [B, C, H, W].
@@ -93,10 +95,10 @@ class NoiseScheduler:
         else:
             shape = (batch_size, num_frames, channels, image_size, image_size)
 
-        x = torch.randn(shape, device=device)
+        x = torch.randn(shape, device=device, generator=generator)
 
         for i in reversed(range(self.timesteps)):
             t = torch.full((batch_size,), i, device=device, dtype=torch.long)
-            x = self.sample_step(model, x, t, i, cond=cond)
+            x = self.sample_step(model, x, t, i, cond=cond, generator=generator)
 
         return x

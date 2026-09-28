@@ -91,12 +91,15 @@ def load_model(checkpoint_path, device='cpu'):
 
 
 def generate_images(model, image_size, timesteps, num_images=4, device='cpu',
-                     save_path=None, upscale=False):
+                     save_path=None, upscale=False, seed=None):
     scheduler = DiffusionScheduler(timesteps=timesteps, device=device)
+    generator = None
+    if seed is not None:
+        generator = torch.Generator(device=device).manual_seed(seed)
 
     samples = scheduler.sample(
         model, image_size=image_size, batch_size=num_images,
-        channels=3, device=device
+        channels=3, device=device, generator=generator
     )
     samples = denormalize(samples)
 

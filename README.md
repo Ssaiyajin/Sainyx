@@ -37,22 +37,22 @@ Sainyx is not just a chatbot. It's a full AI platform:
 
 ## REST API
 
-Check available generators without authentication:
+The versioned API supports text, image, video-frame, and voice-demo generation. Check live capabilities without authentication:
 
 ```bash
 curl http://localhost:7860/api/v1/status
 ```
 
-Set `SAINYX_API_KEY` on the server, then send the key with generation requests:
+Set `SAINYX_API_KEY` as a server secret, then send it with generation requests. The OpenAPI 3.1 spec is served at `/api/v1/openapi.yaml`; detailed examples and limits are in [docs/API.md](docs/API.md).
 
 ```bash
 curl -X POST http://localhost:7860/api/v1/generate \
 	-H "X-API-Key: $SAINYX_API_KEY" \
 	-H "Content-Type: application/json" \
-	-d '{"type":"text","prompt":"Who is Goku?","max_tokens":80}'
+	-d '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'
 ```
 
-Supported generation types are `text`, `image`, `video`, and `voice`. Video availability depends on the trained checkpoint; voice uses Sainyx's lightweight WAV generator.
+Generation supports deterministic seeds where applicable, JSON/base64 or downloadable binary media, and queued jobs with status/result endpoints. Requests are capped at 64 KiB and 60 per minute per client IP. Image generation is currently unconditional (the prompt is metadata only); video returns a single PNG frame; voice currently returns a WAV tone demo, not spoken TTS.
 
 ## Stack
 All free. No paid APIs. Ever.

@@ -104,28 +104,32 @@ Value: paste the generated key</code><button class="api-copy" onclick="copyApiTe
             </div>
             <div class="api-guide-section">
                 <div class="api-guide-label">4. Call the generation API</div>
-                <div class="api-code-row api-code-block"><code id="api-voice-command">curl -X POST https://your-space.hf.space/api/v1/generate \
+                <div class="api-code-row api-code-block"><code id="api-generate-command">curl -X POST https://your-space.hf.space/api/v1/generate \
   -H "X-API-Key: your-generated-key" \
   -H "Content-Type: application/json" \
-  -d '{"type":"voice","text":"Hello from Sainyx"}'</code><button class="api-copy" onclick="copyApiVoice(this)" title="Copy voice request">Copy</button></div>
-                <div class="api-guide-note">The response contains <strong>audio_base64</strong> for voice, <strong>image_base64</strong> for image/video, and <strong>text</strong> for text.</div>
+  -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'</code><button class="api-copy" onclick="copyApiGenerate(this)" title="Copy generation request">Copy</button></div>
+                <div class="api-guide-note">JSON results use a shared <strong>type</strong>, <strong>status</strong>, and <strong>result</strong> envelope. Use <strong>response_format: binary</strong> for a direct PNG or WAV download.</div>
             </div>
             <div class="api-guide-section">
-                <div class="api-guide-label">5. PowerShell alternative</div>
+                <div class="api-guide-label">5. PowerShell</div>
                 <div class="api-code-row api-code-block"><code id="api-powershell-command">$headers = @{ "X-API-Key" = "your-generated-key" }
-Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"voice","text":"Hello from Sainyx"}'</code><button class="api-copy" onclick="copyApiPowerShell(this)" title="Copy PowerShell request">Copy</button></div>
+Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'</code><button class="api-copy" onclick="copyApiPowerShell(this)" title="Copy PowerShell request">Copy</button></div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">6. Long-running requests</div>
+                <div class="api-guide-note">Set <strong>async: true</strong> to receive a job ID and status/result URLs. Poll the status URL with the same API key, then fetch the result when complete. Jobs are kept in memory for up to one hour.</div>
             </div>
             <div class="api-guide-section">
                 <div class="api-guide-label">Available types</div>
                 <div class="api-types"><span>text</span><span>image</span><span>video</span><span>voice</span></div>
-                <div class="api-guide-note">Video requires a trained video checkpoint. Voice works without a trained model. The Space must be running and public for colleagues to reach it.</div>
+                <div class="api-guide-note">Limits: 64 KiB/request and 60 generation requests/minute/IP. Image prompts are metadata only; video is one PNG frame; voice currently returns a tone demo, not speech. <a href="/api/v1/openapi.yaml" target="_blank" rel="noopener">OpenAPI specification</a></div>
             </div>
         </div>
         <div id="roadmap-title" class="roadmap-card-title">🛣️ Roadmap</div>
         <div id="roadmap-list" class="roadmap-list">
             <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
             <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>
-            <div class="roadmap-item"><span class="roadmap-pill in-progress">In progress</span><span>Structured API layer</span></div>
+            <div class="roadmap-item"><span class="roadmap-pill complete">Complete</span><span>Structured API layer</span></div>
         </div>
     </div>
 

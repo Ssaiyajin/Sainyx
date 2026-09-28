@@ -1,0 +1,382 @@
+openapi: 3.1.0
+info:
+  title: Sainyx Generation API
+  version: 1.0.0
+  description: >-
+    Generate text, images, video preview frames, and voice-demo audio. Image prompts
+    are metadata only until a prompt-conditioned image model is deployed; voice output
+    is a tone demo and is not spoken text-to-speech.
+servers:
+  - url: /api/v1
+    description: Current Sainyx host
+security:
+  - ApiKeyAuth: []
+paths:
+  /status:
+    get:
+      security: []
+      summary: Check generator availability and capability limits
+      responses:
+        '200':
+          description: Current API capabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /openapi.yaml:
+    get:
+      security: []
+      summary: Download this OpenAPI document
+      responses:
+        '200':
+          description: OpenAPI YAML document
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /generate:
+    post:
+      summary: Generate text or media
+      description: >-
+        Generation requests are limited to 60 per minute per client IP and 64 KiB
+        per JSON body. Set async=true for a queued job. JSON media responses contain
+        base64 data; response_format=binary returns a downloadable file.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/TextRequest'
+                - $ref: '#/components/schemas/ImageRequest'
+                - $ref: '#/components/schemas/VideoRequest'
+                - $ref: '#/components/schemas/VoiceRequest'
+      responses:
+        '200':
+          description: Generation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+            image/png:
+              schema:
+                type: string
+                format: binary
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        '202':
+          description: Generation job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueuedJob'
+        '400':
+          description: Invalid request or unsupported option
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body exceeds the 64 KiB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Generation rate limit exceeded; see Retry-After
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: API key is not configured or generator is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /jobs/{job_id}:
+    get:
+      summary: Check an asynchronous generation job
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Current job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /jobs/{job_id}/result:
+    get:
+      summary: Retrieve a completed job result
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Generation result (JSON or downloadable media)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+            image/png:
+              schema:
+                type: string
+                format: binary
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Job is still queued or running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  parameters:
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    TextRequest:
+      type: object
+      additionalProperties: false
+      required: [type, prompt]
+      properties:
+        type:
+          const: text
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 80
+        seed:
+          $ref: '#/components/schemas/Seed'
+        response_format:
+          type: string
+          enum: [json]
+          default: json
+        async:
+          type: boolean
+          default: false
+    ImageRequest:
+      type: object
+      additionalProperties: false
+      required: [type, prompt]
+      properties:
+        type:
+          const: image
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Stored as request metadata; the current image model is unconditional.
+        num_images:
+          type: integer
+          minimum: 1
+          maximum: 4
+          default: 1
+        seed:
+          $ref: '#/components/schemas/Seed'
+        response_format:
+          type: string
+          enum: [json, binary]
+          default: json
+        async:
+          type: boolean
+          default: false
+    VideoRequest:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          const: video
+        seed:
+          $ref: '#/components/schemas/Seed'
+        response_format:
+          type: string
+          enum: [json, binary]
+          default: json
+        async:
+          type: boolean
+          default: false
+    VoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [type]
+      anyOf:
+        - required: [text]
+        - required: [prompt]
+      properties:
+        type:
+          const: voice
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Text metadata; current audio output is a tone demo, not speech synthesis.
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Legacy alias for text.
+        voice:
+          type: string
+          enum: [neutral, energetic]
+          default: neutral
+        response_format:
+          type: string
+          enum: [json, binary]
+          default: json
+        async:
+          type: boolean
+          default: false
+    Seed:
+      type: integer
+      minimum: 0
+      maximum: 9223372036854775807
+      description: Optional deterministic seed for text, image, and video generation.
+    GenerationResponse:
+      type: object
+      required: [type, status, result]
+      properties:
+        type:
+          type: string
+          enum: [text, image, video, voice]
+        status:
+          const: completed
+        result:
+          type: object
+          additionalProperties: true
+    QueuedJob:
+      type: object
+      required: [type, status, job_id, status_url, result_url]
+      properties:
+        type:
+          type: string
+          enum: [text, image, video, voice]
+        status:
+          const: queued
+        job_id:
+          type: string
+          format: uuid
+        status_url:
+          type: string
+        result_url:
+          type: string
+    JobStatus:
+      type: object
+      required: [job_id, type, status, created_at, updated_at]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [text, image, video, voice]
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        created_at:
+          type: number
+        updated_at:
+          type: number
+        result_url:
+          type: string
+        error:
+          $ref: '#/components/schemas/ApiError'
+    ErrorResponse:
+      type: object
+      required: [status, error]
+      properties:
+        status:
+          const: error
+        error:
+          $ref: '#/components/schemas/ApiError'
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        fields:
+          type: array
+          items:
+            type: string
+        available_types:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+    Status:
+      type: object
+      required: [api_version, available_types, generators, limits]
+      properties:
+        api_version:
+          const: v1
+        available_types:
+          type: object
+          additionalProperties:
+            type: boolean
+        generators:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: true
+        limits:
+          type: object
+          additionalProperties:
+            type: integer

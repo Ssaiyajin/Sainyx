@@ -115,6 +115,7 @@ header{width:100%;padding:0 24px;display:flex;align-items:center;gap:16px;border
 .roadmap-pill{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;font-family:'Courier New', monospace;}
 .roadmap-pill.planned{background:#00ff8811;border:1px solid #00ff8833;color:var(--green);}
 .roadmap-pill.in-progress{background:#00aaff11;border:1px solid #00aaff33;color:var(--blue);} 
+.roadmap-pill.complete{background:#00ff8811;border:1px solid #00ff8844;color:var(--green);}
 .welcome-roadmap{margin-top:20px;max-width:620px;}
 .api-guide-copy{font-size:12px;color:var(--text-dim);margin-bottom:12px;}
 .api-guide-section{margin-top:12px;}

@@ -57,7 +57,7 @@ class DiffusionScheduler:
         return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
     @torch.no_grad()
-    def sample_step(self, model, x, t, t_index, clip_denoised=True):
+    def sample_step(self, model, x, t, t_index, clip_denoised=True, generator=None):
         """One reverse diffusion step: denoise x from timestep t to t-1."""
         sqrt_alphas_cumprod_t = self._extract(self.sqrt_alphas_cumprod, t, x.shape)
         sqrt_one_minus_alphas_cumprod_t = self._extract(
@@ -89,21 +89,27 @@ class DiffusionScheduler:
             return posterior_mean
         else:
             posterior_variance_t = self._extract(self.posterior_variance, t, x.shape)
-            noise = torch.randn_like(x)
+            noise = torch.randn(
+                x.shape, device=x.device, dtype=x.dtype, generator=generator
+            )
             return posterior_mean + torch.sqrt(posterior_variance_t) * noise
 
     @torch.no_grad()
-    def sample(self, model, image_size, batch_size=1, channels=3, device='cpu'):
+    def sample(self, model, image_size, batch_size=1, channels=3, device='cpu', generator=None):
         """
         Full reverse process: start from pure noise and denoise all the way
         down to timestep 0, returning a generated image batch.
         """
         model.eval()
-        x = torch.randn((batch_size, channels, image_size, image_size), device=device)
+        x = torch.randn(
+            (batch_size, channels, image_size, image_size),
+            device=device,
+            generator=generator,
+        )
 
         for t_index in reversed(range(self.timesteps)):
             t = torch.full((batch_size,), t_index, device=device, dtype=torch.long)
-            x = self.sample_step(model, x, t, t_index)
+            x = self.sample_step(model, x, t, t_index, generator=generator)
 
         model.train()
         return x  # values roughly in [-1, 1] — denormalize before saving as image
