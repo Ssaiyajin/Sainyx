@@ -43,7 +43,7 @@ The versioned API supports text, image, video-frame, and voice-demo generation. 
 curl http://localhost:7860/api/v1/status
 ```
 
-Set `SAINYX_API_KEY` as a server secret, then send it with generation requests. The OpenAPI 3.1 spec is served at `/api/v1/openapi.yaml`; detailed examples and limits are in [docs/API.md](docs/API.md).
+API clients need only the base URL and an API key from the Sainyx owner; they do not need Hugging Face access. The owner configures `SAINYX_API_KEY` in the Space settings and shares that key with authorized clients. The OpenAPI 3.1 spec is served at `/api/v1/openapi.yaml`; the [API quickstart](docs/API.md) has curl and Python examples.
 
 ```bash
 curl -X POST http://localhost:7860/api/v1/generate \
@@ -54,7 +54,7 @@ curl -X POST http://localhost:7860/api/v1/generate \
 
 Generation supports deterministic seeds where applicable, JSON/base64 or downloadable binary media, and queued jobs with status/result endpoints. Requests are capped at 64 KiB and 60 per minute per client IP. Image generation is currently unconditional (the prompt is metadata only); video returns a single PNG frame; voice currently returns a WAV tone demo, not spoken TTS.
 
-GitHub Actions runs a real text-generation API smoke test on pull requests targeting `main` or `Dev`, and blocks the Hugging Face deployment workflows unless it passes. The Actions log includes the sample prompt and Sainyx's generated reply. It loads the text checkpoint from Hugging Face, so the model repository must be public or the `HF_TOKEN` Actions secret must have access.
+GitHub Actions runs a real text-generation API smoke test on pull requests targeting `main` or `Dev`, and blocks the Hugging Face deployment workflows unless it passes. After production deployment to Hugging Face, the `main` workflow also waits for the public API to restart and sends an authenticated sample request to verify the live endpoint. The Actions log includes the sample prompt and generated reply. Configure `HF_TOKEN` and `SAINYX_API_KEY` as GitHub Actions secrets; the model repository must be public or `HF_TOKEN` must have access. Set the same `SAINYX_API_KEY` in the Hugging Face Space secrets.
 
 ## Stack
 All free. No paid APIs. Ever.

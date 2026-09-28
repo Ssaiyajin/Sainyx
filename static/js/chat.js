@@ -335,14 +335,14 @@ function updateApiGuide() {
     const powershell = document.getElementById('api-powershell-command');
     const curlCommand = [
         `curl -X POST ${baseUrl}/generate`,
-        '  -H "X-API-Key: your-generated-key"',
+        '  -H "X-API-Key: YOUR_API_KEY"',
         '  -H "Content-Type: application/json"',
         '  -d \'{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}\''
     ].join('\n');
     if (base) base.textContent = baseUrl;
     if (status) status.textContent = `curl ${baseUrl}/status`;
     if (generate) generate.textContent = curlCommand;
-    if (powershell) powershell.textContent = `$headers = @{ "X-API-Key" = "your-generated-key" }\nInvoke-RestMethod -Method Post -Uri "${baseUrl}/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'`;
+    if (powershell) powershell.textContent = `$headers = @{ "X-API-Key" = "YOUR_API_KEY" }\nInvoke-RestMethod -Method Post -Uri "${baseUrl}/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'`;
 }
 
 function getApiBaseUrl() {
@@ -366,12 +366,12 @@ function copyApiStatus(button) {
 
 function copyApiGenerate(button) {
     const baseUrl = getApiBaseUrl();
-    copyApiText(button, `curl -X POST ${baseUrl}/generate -H "X-API-Key: your-generated-key" -H "Content-Type: application/json" -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'`);
+    copyApiText(button, `curl -X POST ${baseUrl}/generate -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'`);
 }
 
 function copyApiPowerShell(button) {
     const baseUrl = getApiBaseUrl();
-    copyApiText(button, `$headers = @{ "X-API-Key" = "your-generated-key" }; Invoke-RestMethod -Method Post -Uri "${baseUrl}/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'`);
+    copyApiText(button, `$headers = @{ "X-API-Key" = "YOUR_API_KEY" }; Invoke-RestMethod -Method Post -Uri "${baseUrl}/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'`);
 }
 
 async function copyApiText(button, text) {

@@ -13,6 +13,7 @@ jobs:
   deploy:
     needs: api-smoke
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -28,3 +29,17 @@ jobs:
           git config user.name "Sainyx Deploy"
           git remote add hf https://ssaiyajin:$HF_TOKEN@huggingface.co/spaces/ssaiyajin/Sainyx
           git push hf main:main --force
+
+      - name: Set up Python for public API verification
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install public API check dependency
+        run: python -m pip install requests
+
+      - name: Verify deployed public Sainyx API
+        env:
+          SAINYX_PUBLIC_API_URL: https://ssaiyajin-sainyx.hf.space/api/v1
+          SAINYX_API_KEY: ${{ secrets.SAINYX_API_KEY }}
+        run: python scripts/public_api_smoke.py

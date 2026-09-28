@@ -1,16 +1,43 @@
 # Sainyx Generation API
 
-The versioned REST API is mounted at `/api/v1`. The live OpenAPI 3.1 contract is available at `/api/v1/openapi.yaml`.
+The versioned REST API is mounted at `/api/v1`. Call it like other hosted AI APIs: send an HTTPS request with your API key. No Hugging Face account or SDK is needed for API clients.
 
-## Authentication
+## Quick Start
 
-`GET /status` and `GET /openapi.yaml` are public. All generation and job endpoints require the server key in `X-API-Key`:
+Ask the Sainyx API owner for the base URL and API key. Send the key in the `X-API-Key` header:
 
-```powershell
-$env:SAINYX_API_KEY = "replace-with-a-long-random-secret"
+```bash
+curl -X POST https://YOUR_HOST/api/v1/generate \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80}'
 ```
 
-Create a key with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Configure the key as a deployment secret; never put it in browser code or commit it.
+Python example:
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://YOUR_HOST/api/v1/generate",
+    headers={"X-API-Key": os.environ["SAINYX_API_KEY"]},
+    json={"type": "text", "prompt": "Who is Goku?", "max_tokens": 80},
+    timeout=120,
+)
+response.raise_for_status()
+print(response.json()["result"]["text"])
+```
+
+## API Key Setup (Owner Only)
+
+The Sainyx Space owner creates a random key with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and saves it as `SAINYX_API_KEY` in the Hugging Face Space settings. The owner shares that API key with authorized clients; clients do not create Space secrets and do not need the Hugging Face account token. For the post-deployment check, the owner also saves the same key as a GitHub Actions secret named `SAINYX_API_KEY`.
+
+Clients should store the key in a server-side environment variable, not commit it or put it in public browser code. The current API uses one shared key for all clients.
+
+`GET /status` and `GET /openapi.yaml` are public. Generation and job endpoints require `X-API-Key`.
+
+The live OpenAPI 3.1 contract is available at `/api/v1/openapi.yaml`.
 
 Generation requests are limited to 60 per minute per client IP and 64 KiB per JSON body. A `429` response includes `Retry-After`. The current rate counter and async job queue are in process memory; run a single application worker or enforce shared rate limits and durable jobs at the deployment gateway before scaling to multiple workers.
 
