@@ -76,7 +76,13 @@ class ModelFactory:
         vocab_size = state_dict["token_embedding.weight"].shape[0]
 
         model = Sainyx(vocab_size=vocab_size).to(config.DEVICE)
-        model.load_state_dict(state_dict)
+        compatible_state_dict = {}
+        for key, value in state_dict.items():
+            normalized_key = key.removeprefix("module.")
+            normalized_key = normalized_key.replace(".sa.", ".self_attention.")
+            normalized_key = normalized_key.replace(".ff.", ".feed_forward.")
+            compatible_state_dict[normalized_key] = value
+        model.load_state_dict(compatible_state_dict)
         model.eval()
 
         vocab_dict = {
