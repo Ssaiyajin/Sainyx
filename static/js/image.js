@@ -63,14 +63,6 @@ function downloadImage(btn) {
     URL.revokeObjectURL(imageUrl);
 }
 
-function isImageRequest(msg) {
-    const triggers = [
-        'generate', 'draw', 'create image', 'make image',
-        'paint', 'illustrate', 'show me', 'render', 'design'
-    ];
-    return triggers.some(t => msg.toLowerCase().includes(t));
-}
-
 function extractImagePrompt(msg) {
     return msg
         .replace(/generate|draw|create|make|paint|illustrate|render|show me|design|an image of|a picture of|image of|picture of/gi, '')

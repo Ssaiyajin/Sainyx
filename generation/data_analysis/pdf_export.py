@@ -1,20 +1,21 @@
+"""Build downloadable PDF reports from the analyzer's report and chart data."""
+
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.units import cm
 import io
 import base64
 
 def generate_pdf(report, summary, charts):
+    """Render summary, dataset metadata, statistics, and base64 PNG charts."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                             rightMargin=2*cm, leftMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
 
-    styles = getSampleStyleSheet()
-
-    # custom styles
+    # Define report-specific styles rather than relying on ReportLab defaults.
     title_style = ParagraphStyle('title',
         fontSize=24, fontName='Helvetica-Bold',
         textColor=colors.HexColor('#00ff88'),

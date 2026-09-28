@@ -1,3 +1,9 @@
+"""Flask web app for chat, media generation, analysis, and the versioned API.
+
+Model instances are loaded through ``ModelFactory`` so browser routes and API
+routes share the same cached checkpoints instead of allocating duplicates.
+"""
+
 import os
 import io
 import base64
@@ -8,15 +14,14 @@ from generation.video.diffusion import NoiseScheduler
 from torchvision.utils import save_image
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
-from huggingface_hub import hf_hub_download
 
-from model.gpt import Sainyx, BLOCK_SIZE
 from generation.data_analysis.analyzer import analyze_csv, generate_charts, summarize
 from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
-from generation.image.generate import load_model as load_diffusion_model, generate_images
+from generation.image.generate import generate_images
 from generation.audio.voice import generate_voice_audio
 from api.api import api
+from core.models.factory import get_image_model, get_text_model, get_video_model
 
 import config
 
@@ -41,77 +46,16 @@ COMING_SOON_FEATURES = {
     }
 }
 
-# ── Load text model + vocab together ───────────────
+# Load each checkpoint through the shared cache used by API routes too.
 device = config.DEVICE
+model, text_vocab = get_text_model()
+encode = text_vocab['encode']
+itos = text_vocab['itos']
 
-model_path = config.TEXT_MODEL_LOCAL_PATH
-
-if not os.path.exists(model_path):
-    print("Downloading model from HuggingFace...")
-    try:
-        model_path = hf_hub_download(
-            repo_id=config.TEXT_MODEL_REPO_ID,
-            filename=config.TEXT_MODEL_FILENAME,
-            repo_type='model',
-            token=config.HF_TOKEN
-        )
-        print(f"✅ Model downloaded to: {model_path}")
-    except Exception as e:
-        print(f"❌ Download failed: {e}")
-        raise
-
-print(f"Loading model from: {model_path}")
-checkpoint = torch.load(model_path, map_location=device)
-print("✅ Checkpoint loaded")
-
-chars = checkpoint['chars']
-stoi  = checkpoint['stoi']
-itos  = {int(k) if isinstance(k, str) else k: v for k, v in checkpoint['itos'].items()}
-
-encode = lambda s: [stoi.get(c, 0) for c in s]
-decode = lambda l: ''.join([itos.get(i, '?') for i in l])
-
-state_dict = checkpoint['model_state_dict']
-vocab_size  = state_dict['token_embedding.weight'].shape[0]
-print(f"Vocab size: {vocab_size}")
-
-model = Sainyx(vocab_size=vocab_size).to(device)
-print("✅ Model created")
-model.load_state_dict(state_dict)
-print("✅ Weights loaded")
-model.eval()
-print("🔥 Sainyx ready!")
-
-
-# ── Load diffusion model ────────────────────────────
-diffusion_model_path = config.IMAGE_MODEL_LOCAL_PATH
-
-if not os.path.exists(diffusion_model_path):
-    print("Downloading diffusion model from HuggingFace...")
-    try:
-        diffusion_model_path = hf_hub_download(
-            repo_id=config.IMAGE_MODEL_REPO_ID,
-            filename=config.IMAGE_MODEL_FILENAME,
-            repo_type='model',
-            token=config.HF_TOKEN
-        )
-        print(f"✅ Diffusion model downloaded to: {diffusion_model_path}")
-    except Exception as e:
-        print(f"❌ Diffusion model download failed: {e}")
-        diffusion_model_path = None
-
-diffusion_model = None
-diffusion_image_size = config.IMAGE_SIZE_DEFAULT
-diffusion_timesteps = config.IMAGE_TIMESTEPS_DEFAULT
-
-if diffusion_model_path:
-    diffusion_model, diffusion_image_size, diffusion_timesteps = load_diffusion_model(
-        diffusion_model_path, device=device
-    )
-
-
-# ── Load video model (Tier 1, unconditional, may not exist yet) ─────
-from core.models.factory import get_video_model
+image_result = get_image_model()
+diffusion_model = image_result['model'] if image_result else None
+diffusion_image_size = image_result['image_size'] if image_result else config.IMAGE_SIZE_DEFAULT
+diffusion_timesteps = image_result['timesteps'] if image_result else config.IMAGE_TIMESTEPS_DEFAULT
 
 video_result = get_video_model()
 video_model = video_result["model"] if video_result else None

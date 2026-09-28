@@ -1,12 +1,14 @@
-import pandas as pd
-import matplotlib.pyplot as plt
+"""Deterministic CSV profiling, chart generation, and plain-text summaries."""
+
 import matplotlib
-matplotlib.use('Agg')  # no display needed
+matplotlib.use('Agg')  # Use a non-interactive backend on the server.
+import matplotlib.pyplot as plt
+import pandas as pd
 import io
 import base64
-import os
 
 def analyze_csv(filepath):
+    """Read a CSV and collect structural, missing-value, and basic stats."""
     df = pd.read_csv(filepath)
     
     report = {}
@@ -36,6 +38,7 @@ def analyze_csv(filepath):
     return df, report
 
 def generate_charts(df):
+    """Create applicable charts from the first numeric and categorical columns."""
     charts = []
     numeric_cols = df.select_dtypes(include='number').columns.tolist()
     cat_cols = df.select_dtypes(include='object').columns.tolist()
@@ -118,6 +121,7 @@ def generate_charts(df):
     return charts
 
 def fig_to_base64(fig):
+    """Encode a Matplotlib figure as a PNG data payload for the web UI."""
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight',
                 facecolor=fig.get_facecolor())
@@ -125,6 +129,7 @@ def fig_to_base64(fig):
     return base64.b64encode(buf.read()).decode('utf-8')
 
 def summarize(report):
+    """Turn the computed report fields into deterministic human-readable text."""
     lines = []
     lines.append(f"Dataset has {report['rows']:,} rows and {report['columns']} columns.")
 

@@ -1,10 +1,14 @@
-import pandas as pd
-import numpy as np
+"""Train and evaluate a one-off scikit-learn model from an uploaded CSV.
+
+This is tabular supervised learning, not Sainyx neural-model training. The
+fitted estimator is used to produce this request's metrics and charts; it is
+not saved as a reusable model.
+"""
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LogisticRegression, LinearRegression
-from sklearn.metrics import accuracy_score, r2_score, mean_squared_error
+from sklearn.metrics import accuracy_score, r2_score
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -12,15 +16,14 @@ import io
 import base64
 
 def detect_task(df, target_col):
-    """Detect if this is classification or regression"""
+    """Choose classification for categorical/small-cardinality targets."""
     target = df[target_col]
-    unique_ratio = target.nunique() / len(target)
     if target.dtype == 'object' or target.nunique() <= 10:
         return 'classification'
     return 'regression'
 
 def prepare_data(df, target_col):
-    """Prepare features and target"""
+    """Encode categorical/boolean columns and separate features from target."""
     df = df.copy()
     
     # encode categorical columns
@@ -38,25 +41,24 @@ def prepare_data(df, target_col):
     return X, y
 
 def train_model(df, target_col):
+    """Fit a Random Forest, score a holdout split, and build result charts."""
     task = detect_task(df, target_col)
     X, y = prepare_data(df, target_col)
     
-    # encode target if classification
-    le_target = None
+    # Convert class labels to integers when the selected target is categorical.
     if task == 'classification' and y.dtype == 'object':
-        le_target = LabelEncoder()
-        y = le_target.fit_transform(y)
+        y = LabelEncoder().fit_transform(y)
     
-    # scale features
+    # Scale the feature matrix before fitting the model.
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # split
+    # Keep a fixed holdout set for a repeatable, simple evaluation.
     X_train, X_test, y_train, y_test = train_test_split(
         X_scaled, y, test_size=0.2, random_state=42
     )
     
-    # train
+    # Select the estimator and metric based on the inferred target type.
     if task == 'classification':
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
@@ -70,11 +72,11 @@ def train_model(df, target_col):
         score = r2_score(y_test, y_pred)
         metric_name = 'R² Score'
     
-    # feature importance
+    # Sort feature importances for both the response and the chart.
     importance = dict(zip(X.columns, model.feature_importances_))
     importance = dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
     
-    # generate charts
+    # Return chart images inline with this one-off training result.
     charts = []
     
     # feature importance chart
@@ -117,6 +119,7 @@ def train_model(df, target_col):
     }
 
 def fig_to_base64(fig):
+    """Encode a Matplotlib figure as PNG for the browser result view."""
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight',
                 facecolor=fig.get_facecolor())
