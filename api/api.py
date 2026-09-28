@@ -425,6 +425,20 @@ def _create_job(gen_type: str, body: dict, response_format: str, entry: Generati
 
 # ── Routes ───────────────────────────────────────────────────────────────
 
+@api.route("", methods=["GET"])
+def api_index():
+    """Return API discovery links for the version root."""
+    return jsonify({
+        "name": "Sainyx Generation API",
+        "version": "v1",
+        "status_url": url_for("api.status"),
+        "generate_url": url_for("api.generate"),
+        "openapi_url": url_for("api.openapi_document"),
+        "job_status_url_template": url_for("api.job_status", job_id="{job_id}"),
+        "job_result_url_template": url_for("api.job_result", job_id="{job_id}"),
+    })
+
+
 @api.route("/generate", methods=["POST"])
 @require_api_key
 def generate():

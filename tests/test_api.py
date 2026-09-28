@@ -157,3 +157,12 @@ def test_openapi_document_is_served(client):
     assert response.status_code == 200
     assert response.mimetype == "application/yaml"
     assert b"/jobs/{job_id}/result" in response.data
+
+
+def test_api_version_root_returns_discovery_links(client):
+    response = client.get("/api/v1")
+    assert response.status_code == 200
+    assert response.json["version"] == "v1"
+    assert response.json["status_url"] == "/api/v1/status"
+    assert response.json["generate_url"] == "/api/v1/generate"
+    assert response.json["openapi_url"] == "/api/v1/openapi.yaml"
