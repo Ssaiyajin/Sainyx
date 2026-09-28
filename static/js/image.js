@@ -52,10 +52,15 @@ async function generateImage(prompt) {
 }
 
 function downloadImage(btn) {
-    const a = document.createElement('a');
-    a.href = 'data:image/png;base64,' + btn.dataset.img;
-    a.download = 'sainyx-' + btn.dataset.name + '.png';
-    a.click();
+    const bytes = Uint8Array.from(atob(btn.dataset.img), char => char.charCodeAt(0));
+    const imageUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = 'sainyx-' + (btn.dataset.name || 'image') + '.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(imageUrl);
 }
 
 function isImageRequest(msg) {
