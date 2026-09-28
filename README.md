@@ -54,6 +54,8 @@ curl -X POST http://localhost:7860/api/v1/generate \
 
 Generation supports deterministic seeds where applicable, JSON/base64 or downloadable binary media, and queued jobs with status/result endpoints. Requests are capped at 64 KiB and 60 per minute per client IP. Image generation is currently unconditional (the prompt is metadata only); video returns a single PNG frame; voice currently returns a WAV tone demo, not spoken TTS.
 
+GitHub Actions runs a real text-generation API smoke test on pull requests targeting `main` or `Dev`, and blocks the Hugging Face deployment workflows unless it passes. The Actions log includes the sample prompt and Sainyx's generated reply. It loads the text checkpoint from Hugging Face, so the model repository must be public or the `HF_TOKEN` Actions secret must have access.
+
 ## Stack
 All free. No paid APIs. Ever.
 

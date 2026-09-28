@@ -6,7 +6,12 @@ on:
       - main
 
 jobs:
+  api-smoke:
+    uses: ./.github/workflows/api-smoke.yml
+    secrets: inherit
+
   deploy:
+    needs: api-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
