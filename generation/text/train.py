@@ -267,23 +267,42 @@ if not finished:
 
 print("\nTraining complete!")
 
-# ── Final model: weights + vocab in one file, same format as the best file ──
-atomic_save({
-    'model_state_dict': inference_state_dict(),
-    'chars': chars,
-    'stoi': stoi,
-    'itos': itos,
-    'step': EPOCHS,
-    'val_loss': best_val_loss,
-}, FINAL_PATH)
-print(f"Final model saved to {FINAL_PATH}")
+# ── Final model ───────────────────────────────────
+# The last step is not always the best step. Only replace the model on HF
+# if the final weights beat the best validation loss seen during training.
+final_losses = estimate_loss(model)
+print(f"Final step  | Train: {final_losses['train']:.4f} | Val: {final_losses['val']:.4f} | Best val so far: {best_val_loss:.4f}")
+
+def hf_has_model_file():
+    from huggingface_hub import HfApi
+    api = HfApi()
+    return all(config.TEXT_MODEL_FILENAME in api.list_repo_files(repo_id, token=config.HF_TOKEN)
+               for repo_id, _ in HF_MODEL_TARGETS)
 
 push_ok = False
-if config.HF_TOKEN:
-    print("📤 Pushing final model to Hugging Face (production + staging)...")
-    push_ok = push_to_both_repos(FINAL_PATH, targets=HF_MODEL_TARGETS, token=config.HF_TOKEN)
+if final_losses['val'] <= best_val_loss:
+    best_val_loss = final_losses['val']
+    atomic_save({
+        'model_state_dict': inference_state_dict(),
+        'chars': chars,
+        'stoi': stoi,
+        'itos': itos,
+        'step': EPOCHS,
+        'val_loss': best_val_loss,
+    }, FINAL_PATH)
+    print(f"Final model saved to {FINAL_PATH}")
+    if config.HF_TOKEN:
+        print("📤 Pushing final model to Hugging Face (production + staging)...")
+        push_ok = push_to_both_repos(FINAL_PATH, targets=HF_MODEL_TARGETS, token=config.HF_TOKEN)
+    else:
+        print("⚠️  HF_TOKEN not set - download the final model from the Kaggle Output panel instead")
 else:
-    print("⚠️  HF_TOKEN not set - download the final model from the Kaggle Output panel instead")
+    print("Last-step weights are worse than the best model, so the best one already on HF is kept.")
+    if config.HF_TOKEN:
+        try:
+            push_ok = hf_has_model_file()
+        except Exception as e:
+            print(f"   ⚠️  Could not confirm the model file on HF: {e}")
 
 # Training is done: drop the local checkpoint, and the HF resume copies only
 # if the final model actually landed in both repos.
