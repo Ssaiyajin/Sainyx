@@ -80,13 +80,17 @@ def push_to_both_repos(local_path, targets, token):
     printed rather than silently swallowed.
 
     targets: list of (repo_id, path_in_repo) tuples
+    Returns True only if every target succeeded.
     """
+    all_ok = True
     for repo_id, path_in_repo in targets:
         try:
             push_checkpoint_to_hf(local_path, repo_id, path_in_repo, token)
             print(f"   📤 Pushed to hf://{repo_id}/{path_in_repo}")
         except Exception as e:
+            all_ok = False
             print(f"   ⚠️  Push to hf://{repo_id}/{path_in_repo} failed: {e}")
+    return all_ok
 
             
 
