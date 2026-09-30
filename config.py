@@ -30,8 +30,8 @@ SAINYX_STAGING_REPO_ID = "ssaiyajin/sainyx-staging"
 
 # ── Text model (character-level transformer) ──────────────────────────
 TEXT_MODEL_REPO_ID = "ssaiyajin/sainyx-model"
-TEXT_MODEL_FILENAME = "sainyx_v2_full.pt"
-TEXT_CHECKPOINT_PATH_IN_REPO = "text_gen/checkpoint_latest.pt"
+TEXT_MODEL_FILENAME = "sainyx_v3_57m.pt"   # 7 layers, 816 dims (~57M params)
+TEXT_CHECKPOINT_PATH_IN_REPO = "text_gen/checkpoint_v3_57m_latest.pt"
 TEXT_MODEL_LOCAL_PATH = os.path.join(CHECKPOINT_DIR, TEXT_MODEL_FILENAME)
 
 # ── Image diffusion model ──────────────────────────────────────────────

@@ -9,7 +9,7 @@ from collections import OrderedDict
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(PROJECT_ROOT)
 
-from model.gpt import Sainyx, BLOCK_SIZE, VOCAB_SIZE
+from model.gpt import Sainyx, BLOCK_SIZE, VOCAB_SIZE, N_EMBED, N_HEADS, N_LAYERS
 from core.utils.checkpoint_utils import (
     push_to_both_repos,
     push_checkpoint_to_hf,
@@ -104,7 +104,7 @@ CHECKPOINT_DIR  = os.path.join(PROJECT_ROOT, 'generation', 'text', 'checkpoints'
 CHECKPOINT_PATH = os.path.join(CHECKPOINT_DIR, 'sainyx_checkpoint.pt')
 HF_DOWNLOAD_DIR = os.path.join(CHECKPOINT_DIR, 'hf_download')
 BEST_PATH       = os.path.join(PROJECT_ROOT, 'generation', 'text', 'sainyx_best.pt')
-FINAL_PATH      = os.path.join(PROJECT_ROOT, 'generation', 'text', 'sainyx_v2_full.pt')
+FINAL_PATH      = os.path.join(PROJECT_ROOT, 'generation', 'text', config.TEXT_MODEL_FILENAME)
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Resumable checkpoint (weights + optimizer + step) goes to both repos.
@@ -119,6 +119,11 @@ HF_MODEL_TARGETS = [
 ]
 
 raw_model = model.module if hasattr(model, 'module') else model
+
+# Architecture fingerprint stored in every checkpoint. A checkpoint from a
+# different model size is skipped instead of crashing on a shape mismatch.
+ARCH = {'block_size': BLOCK_SIZE, 'n_embed': N_EMBED, 'n_heads': N_HEADS,
+        'n_layers': N_LAYERS, 'vocab_size': vocab_size}
 
 
 def inference_state_dict():
@@ -155,6 +160,9 @@ def find_resume_checkpoint():
     best = None
     for source, path in found:
         ck = torch.load(path, map_location=device)
+        if ck.get('arch') != ARCH:
+            print(f"   skipping {source}: built for a different model size ({ck.get('arch')})")
+            continue
         if best is None or ck['step'] > best[1]['step']:
             best = (source, ck)
     return best
@@ -198,6 +206,7 @@ def save_and_sync_checkpoint(step, loss_value, push=True):
         'loss': loss_value,
         'best_val_loss': best_val_loss,
         'chars': chars,
+        'arch': ARCH,
     }, CHECKPOINT_PATH)
     if push and config.HF_TOKEN:
         push_to_both_repos(CHECKPOINT_PATH, targets=HF_CKPT_TARGETS, token=config.HF_TOKEN)
@@ -207,7 +216,7 @@ def save_and_sync_checkpoint(step, loss_value, push=True):
 EPOCHS = 100000
 EVAL_EVERY = 5000
 SAVE_EVERY = 1000    # local checkpoint every 1000 steps
-PUSH_EVERY = 5000    # mirror checkpoint to HF every 5000 steps (multiple of SAVE_EVERY)
+PUSH_EVERY = 5000    # mirror checkpoint to HF every 5000 steps (multiple of SAVE_EVERY); each push is ~700 MB at 57M params
 
 timer = SessionTimer(max_session_seconds=12 * 60 * 60, safety_margin_seconds=20 * 60)
 finished = True   # flips to False if we stop early for the session limit
@@ -241,6 +250,7 @@ for step in range(start_step, EPOCHS):
                 'chars': chars,
                 'stoi': stoi,
                 'itos': itos,
+                'arch': ARCH,
                 'step': step,
                 'val_loss': best_val_loss,
             }, BEST_PATH)
@@ -287,6 +297,7 @@ if final_losses['val'] <= best_val_loss:
         'chars': chars,
         'stoi': stoi,
         'itos': itos,
+        'arch': ARCH,
         'step': EPOCHS,
         'val_loss': best_val_loss,
     }, FINAL_PATH)
