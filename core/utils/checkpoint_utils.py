@@ -72,6 +72,33 @@ class SessionTimer:
         return (time.time() - self.start_time) / 60
 
 
+def prune_old_versions(repo_id, path_in_repo, token, keep_latest=True):
+    """Permanently delete superseded versions of ONE file in a HF repo.
+
+    Every upload to the same path keeps the old copy in the repo history, and old
+    copies count against storage. Call this right after a push so at most the
+    newest version stays. With keep_latest=False every version is removed, for a
+    file that was just deleted. Set SAINYX_PRUNE=0 to turn this off.
+    Never raises: a failed prune only prints a warning."""
+    if os.environ.get("SAINYX_PRUNE", "1") == "0":
+        return
+    from huggingface_hub import HfApi
+    api = HfApi()
+    try:
+        versions = [f for f in api.list_lfs_files(repo_id, token=token) if f.filename == path_in_repo]
+        if not versions:
+            return
+        keep = {max(versions, key=lambda f: f.pushed_at).file_oid} if keep_latest else set()
+        stale = {f.file_oid: f for f in versions if f.file_oid not in keep}
+        if not stale:
+            return
+        freed = sum(f.size for f in stale.values())
+        api.permanently_delete_lfs_files(repo_id, list(stale.values()), token=token)
+        print(f"   🧹 Pruned {len(stale)} old version(s) of hf://{repo_id}/{path_in_repo} (freed {freed / 1e9:.2f} GB)")
+    except Exception as e:
+        print(f"   ⚠️  Could not prune old versions of hf://{repo_id}/{path_in_repo}: {e}")
+
+
 def push_to_both_repos(local_path, targets, token):
     """
     Push a checkpoint to multiple (repo_id, path_in_repo) targets.
@@ -87,6 +114,7 @@ def push_to_both_repos(local_path, targets, token):
         try:
             push_checkpoint_to_hf(local_path, repo_id, path_in_repo, token)
             print(f"   📤 Pushed to hf://{repo_id}/{path_in_repo}")
+            prune_old_versions(repo_id, path_in_repo, token)
         except Exception as e:
             all_ok = False
             print(f"   ⚠️  Push to hf://{repo_id}/{path_in_repo} failed: {e}")
@@ -107,5 +135,6 @@ def delete_checkpoint_from_hf(repo_id, path_in_repo, token):
             token=token,
         )
         print(f"   🗑️  Deleted hf://{repo_id}/{path_in_repo}")
+        prune_old_versions(repo_id, path_in_repo, token, keep_latest=False)
     except Exception as e:
         print(f"   ⚠️  Could not delete hf://{repo_id}/{path_in_repo}: {e}")
