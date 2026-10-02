@@ -255,7 +255,9 @@ for step in range(start_step, EPOCHS):
                 'val_loss': best_val_loss,
             }, BEST_PATH)
             print(f"   ✅ New best val loss: {best_val_loss:.4f} - saved sainyx_best.pt")
-            if config.HF_TOKEN:
+            if step == 0:
+                print("   Step 0 is untrained, so it is not pushed to Hugging Face.")
+            elif config.HF_TOKEN:
                 push_to_both_repos(BEST_PATH, targets=HF_MODEL_TARGETS, token=config.HF_TOKEN)
             else:
                 print("   ⚠️  HF_TOKEN not set - skipping auto-push")
