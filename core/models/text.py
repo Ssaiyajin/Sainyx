@@ -9,8 +9,8 @@ import torch.nn.functional as F
  
 # ── Model Hyperparameters ──────────────────────────
 BLOCK_SIZE = 128        # Context length (max sequence)
-N_EMBED = 816          # Embedding dimensions
-N_HEADS = 8            # Number of attention heads
+N_EMBED = 822          # Embedding dimensions
+N_HEADS = 6            # Number of attention heads
 N_LAYERS = 7           # Number of transformer blocks
 DROPOUT = 0.1          # Dropout rate
  
