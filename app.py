@@ -10,7 +10,7 @@ import base64
 
 import pandas as pd
 import torch
-from generation.video.diffusion import NoiseScheduler
+from generation.video.render import generate_clip_gif
 from torchvision.utils import save_image
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
@@ -58,9 +58,6 @@ diffusion_image_size = image_result['image_size'] if image_result else config.IM
 diffusion_timesteps = image_result['timesteps'] if image_result else config.IMAGE_TIMESTEPS_DEFAULT
 
 video_result = get_video_model()
-video_model = video_result["model"] if video_result else None
-video_image_size = video_result["image_size"] if video_result else config.VIDEO_IMAGE_SIZE_DEFAULT
-video_timesteps = video_result["timesteps"] if video_result else config.VIDEO_TIMESTEPS_DEFAULT
 
 
 # ── Flask app ──────────────────────────────────────
@@ -212,21 +209,13 @@ def generate_image():
 
 @app.route('/generate-video', methods=['POST'])
 def generate_video():
-    if video_model is None:
+    if video_result is None:
         return jsonify({'error': 'Video model not available yet — no checkpoint pushed from Kaggle.'})
 
     try:
-        scheduler = NoiseScheduler(timesteps=video_timesteps, device=device)
-        samples = scheduler.sample(
-            video_model, image_size=video_image_size,
-            batch_size=1, channels=3, device=device
-        )
-        samples = (samples.clamp(-1, 1) + 1) / 2  # denormalize
-
-        buffer = io.BytesIO()
-        save_image(samples, buffer, format='PNG')
-        img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        return jsonify({'image': img_b64, 'source': 'sainyx-video-tier1'})
+        gif_bytes = generate_clip_gif(video_result, device)
+        gif_b64 = base64.b64encode(gif_bytes).decode('utf-8')
+        return jsonify({'gif': gif_b64, 'frames': video_result['clip_len'], 'source': 'sainyx-video'})
     except Exception as e:
         return jsonify({'error': f'Video generation failed: {e}'})
 

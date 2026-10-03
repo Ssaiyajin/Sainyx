@@ -198,38 +198,23 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
 
 def _generate_video(body: dict) -> Tuple[dict, int]:
     import config
-    import torch
-    from torchvision.utils import save_image
-    from generation.video.diffusion import NoiseScheduler
+    from generation.video.render import generate_clip_gif
 
     video_result = get_video_model()
     if video_result is None:
         return {"error": "video model is not available yet (still training)"}, 503
 
     seed = body.get("seed")
-    generator = torch.Generator(device=config.DEVICE) if seed is not None else None
-    if generator is not None:
-        generator.manual_seed(seed)
-    scheduler = NoiseScheduler(timesteps=video_result["timesteps"], device=config.DEVICE)
-    samples = scheduler.sample(
-        video_result["model"],
-        image_size=video_result["image_size"],
-        batch_size=1,
-        channels=3,
-        device=config.DEVICE,
-        generator=generator,
-    )
-    samples = (samples.clamp(-1, 1) + 1) / 2
-    buffer = io.BytesIO()
-    save_image(samples, buffer, format="PNG")
-    image_bytes = buffer.getvalue()
+    gif_bytes = generate_clip_gif(video_result, config.DEVICE, seed=seed)
     return {
-        "image_base64": base64.b64encode(image_bytes).decode("ascii"),
+        "video_base64": base64.b64encode(gif_bytes).decode("ascii"),
+        "format": "gif",
+        "frames": video_result["clip_len"],
         "seed": seed,
-        "source": "sainyx-video-tier1",
-        "_media_bytes": image_bytes,
-        "_media_type": "image/png",
-        "_filename": "sainyx-video-frame.png",
+        "source": "sainyx-video",
+        "_media_bytes": gif_bytes,
+        "_media_type": "image/gif",
+        "_filename": "sainyx-video.gif",
     }, 200
 
 
@@ -528,7 +513,7 @@ def status():
             },
             "video": {
                 "available": available["video"], "supports_seed": True,
-                "output": "single PNG frame",
+                "output": "looping GIF clip",
             },
             "voice": {
                 "available": available["voice"], "voices": ["neutral", "energetic"],

@@ -127,46 +127,65 @@ class ModelFactory:
             print(f"⚠️  Image model loading failed: {e}")
             return None
 
-    # ── Video diffusion model (Tier 1, unconditional, in development) ───
+    # ── Video diffusion model (VideoUNet, unconditional clips) ──────────
+    @staticmethod
+    def _load_video_weights(model_path: str):
+        """Return (state_dict, settings) from either the consolidated final file
+        or a resumable training checkpoint (which carries EMA weights)."""
+        checkpoint = torch.load(model_path, map_location=config.DEVICE)
+        state = checkpoint.get("ema_state_dict") or checkpoint["model_state_dict"]
+        return state, checkpoint
+
     @staticmethod
     def load_video_model(force_download: bool = False) -> Optional[Dict]:
         if "video" in ModelFactory._cache and not force_download:
             return ModelFactory._cache["video"]
 
-        if force_download and os.path.exists(config.VIDEO_MODEL_LOCAL_PATH):
-            os.remove(config.VIDEO_MODEL_LOCAL_PATH)
+        # Prefer the final model; fall back to the training checkpoint while a
+        # run is still in progress.
+        sources = [
+            (config.VIDEO_MODEL_PATH_IN_REPO, config.VIDEO_MODEL_LOCAL_PATH),
+            (config.VIDEO_CHECKPOINT_PATH_IN_REPO, config.VIDEO_CHECKPOINT_LOCAL_PATH),
+        ]
+        if force_download:
+            for _, local in sources:
+                if os.path.exists(local):
+                    os.remove(local)
 
-        try:
-            model_path = ModelFactory._ensure_local(
-                config.VIDEO_MODEL_REPO_ID,
-                config.VIDEO_CHECKPOINT_PATH_IN_REPO,
-                config.VIDEO_MODEL_LOCAL_PATH,
-            )
+        last_error = None
+        for path_in_repo, local_path in sources:
+            try:
+                model_path = ModelFactory._ensure_local(
+                    config.VIDEO_MODEL_REPO_ID, path_in_repo, local_path
+                )
 
-            from model.video_unet import TinyUNet
+                from model.video_unet import VideoUNet
 
-            checkpoint = torch.load(model_path, map_location=config.DEVICE)
-            model = TinyUNet(base_ch=64).to(config.DEVICE)
-            model.load_state_dict(checkpoint["model_state_dict"])
-            model.eval()
+                state, checkpoint = ModelFactory._load_video_weights(model_path)
+                base_ch = checkpoint.get("base_ch", config.VIDEO_BASE_CH_DEFAULT)
+                model = VideoUNet(base_ch=base_ch).to(config.DEVICE)
+                model.load_state_dict(state)
+                model.eval()
 
-            result = {
-                "model": model,
-                "image_size": config.VIDEO_IMAGE_SIZE_DEFAULT,
-                "timesteps": config.VIDEO_TIMESTEPS_DEFAULT,
-            }
-            ModelFactory._cache["video"] = result
-            print(
-                f"🔥 Video diffusion model ready! "
-                f"(step {checkpoint.get('step', '?')}, loss {checkpoint.get('loss', '?')})"
-            )
-            return result
+                result = {
+                    "model": model,
+                    "image_size": checkpoint.get("image_size", config.VIDEO_IMAGE_SIZE_DEFAULT),
+                    "clip_len": checkpoint.get("clip_len", config.VIDEO_CLIP_LEN_DEFAULT),
+                    "timesteps": checkpoint.get("timesteps", config.VIDEO_TIMESTEPS_DEFAULT),
+                }
+                ModelFactory._cache["video"] = result
+                print(
+                    f"🔥 Video diffusion model ready from {path_in_repo}! "
+                    f"({result['clip_len']} frames at {result['image_size']}px, "
+                    f"loss {checkpoint.get('final_loss', checkpoint.get('loss', '?'))})"
+                )
+                return result
+            except Exception as e:
+                last_error = e
 
-        except Exception as e:
-            # Expected while the Tier 1 video model is still training on
-            # Kaggle and no checkpoint has been pushed yet.
-            print(f"⚠️  Video model not available yet: {e}")
-            return None
+        # Expected before the first video checkpoint exists on the Hub.
+        print(f"⚠️  Video model not available yet: {last_error}")
+        return None
 
     # ── Generic accessors ────────────────────────────────────────────────
     @staticmethod

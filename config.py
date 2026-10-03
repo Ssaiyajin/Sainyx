@@ -44,7 +44,14 @@ IMAGE_TIMESTEPS_DEFAULT = 1000
 
 # ── Video diffusion model (in development) ─────────────────────────────
 VIDEO_MODEL_REPO_ID = "ssaiyajin/sainyx-model"
+VIDEO_MODEL_FILENAME = "sainyx_video_full.pt"
+# Consolidated file written at the end of training (EMA weights + architecture settings).
+VIDEO_MODEL_PATH_IN_REPO = f"video_gen/{VIDEO_MODEL_FILENAME}"
+VIDEO_MODEL_LOCAL_PATH = os.path.join(CHECKPOINT_DIR, VIDEO_MODEL_FILENAME)
+# Resumable training checkpoint. Used as a fallback while a run is still in progress.
 VIDEO_CHECKPOINT_PATH_IN_REPO = "video_gen/checkpoint_latest.pt"
-VIDEO_MODEL_LOCAL_PATH = os.path.join(CHECKPOINT_DIR, "video_checkpoint_latest.pt")
+VIDEO_CHECKPOINT_LOCAL_PATH = os.path.join(CHECKPOINT_DIR, "video_checkpoint_latest.pt")
 VIDEO_IMAGE_SIZE_DEFAULT = 64
+VIDEO_CLIP_LEN_DEFAULT = 8
 VIDEO_TIMESTEPS_DEFAULT = 1000
+VIDEO_BASE_CH_DEFAULT = 64
