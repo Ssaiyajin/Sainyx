@@ -170,6 +170,7 @@ def find_resume_checkpoint():
 
 start_step = 0
 best_val_loss = float('inf')
+bad_evals = 0   # evaluations in a row without a better validation loss (early stopping)
 
 # ── Resume: newest of local / HF model repo / HF staging repo ──
 resume = None if os.environ.get('FRESH_START') == '1' else find_resume_checkpoint()
@@ -187,6 +188,7 @@ if resume:
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     start_step = checkpoint['step']
     best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+    bad_evals = checkpoint.get('bad_evals', 0)
     print(f"\n🔄 Resumed from {source} at step {start_step} "
           f"(loss {checkpoint['loss']:.4f}, best val {best_val_loss:.4f})\n")
 else:
@@ -205,6 +207,7 @@ def save_and_sync_checkpoint(step, loss_value, push=True):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss_value,
         'best_val_loss': best_val_loss,
+        'bad_evals': bad_evals,
         'chars': chars,
         'arch': ARCH,
     }, CHECKPOINT_PATH)
@@ -214,12 +217,17 @@ def save_and_sync_checkpoint(step, loss_value, push=True):
 
 # ── Training Loop ─────────────────────────────────
 EPOCHS = 100000
-EVAL_EVERY = 5000
+EVAL_EVERY = int(os.environ.get('EVAL_EVERY', 1000))   # validation check interval, in steps
+# Early stopping: end the run when validation loss has not improved for this many checks
+# in a row. The best model found so far is the final model. 0 turns it off.
+EARLY_STOP_PATIENCE = int(os.environ.get('EARLY_STOP_PATIENCE', 4))
+EARLY_STOP_MIN_DELTA = float(os.environ.get('EARLY_STOP_MIN_DELTA', 0.0))   # smaller gains do not reset the counter
 SAVE_EVERY = 1000    # local checkpoint every 1000 steps
 PUSH_EVERY = 5000    # mirror checkpoint to HF every 5000 steps (multiple of SAVE_EVERY); each push is ~700 MB at 57M params
 
 timer = SessionTimer(max_session_seconds=12 * 60 * 60, safety_margin_seconds=20 * 60)
 finished = True   # flips to False if we stop early for the session limit
+stopped_early = False   # True when early stopping ended the run
 last_step, last_loss = start_step, float('nan')
 
 print(f"\nStarting training from step {start_step} to {EPOCHS}...\n")
@@ -243,6 +251,9 @@ for step in range(start_step, EPOCHS):
         losses = estimate_loss(model)
         print(f"Step {step:>6} | Train: {losses['train']:.4f} | Val: {losses['val']:.4f} | LR: {lr:.2e}")
 
+        significant = losses['val'] < best_val_loss - EARLY_STOP_MIN_DELTA
+        bad_evals = 0 if significant else bad_evals + 1
+
         if losses['val'] < best_val_loss:
             best_val_loss = losses['val']
             atomic_save({
@@ -261,6 +272,13 @@ for step in range(start_step, EPOCHS):
                 push_to_both_repos(BEST_PATH, targets=HF_MODEL_TARGETS, token=config.HF_TOKEN)
             else:
                 print("   ⚠️  HF_TOKEN not set - skipping auto-push")
+
+        if EARLY_STOP_PATIENCE and bad_evals >= EARLY_STOP_PATIENCE:
+            print(f"\n🛑 Early stopping at step {step}: validation loss has not improved for "
+                  f"{bad_evals} checks in a row. Best val loss {best_val_loss:.4f}.")
+            stopped_early = True
+            last_step = step
+            break
 
     if step % SAVE_EVERY == 0 and step > start_step:
         save_and_sync_checkpoint(step, last_loss, push=(step % PUSH_EVERY == 0))
@@ -282,8 +300,10 @@ print("\nTraining complete!")
 # ── Final model ───────────────────────────────────
 # The last step is not always the best step. Only replace the model on HF
 # if the final weights beat the best validation loss seen during training.
-final_losses = estimate_loss(model)
-print(f"Final step  | Train: {final_losses['train']:.4f} | Val: {final_losses['val']:.4f} | Best val so far: {best_val_loss:.4f}")
+final_losses = None
+if not stopped_early:
+    final_losses = estimate_loss(model)
+    print(f"Final step  | Train: {final_losses['train']:.4f} | Val: {final_losses['val']:.4f} | Best val so far: {best_val_loss:.4f}")
 
 def hf_has_model_file():
     from huggingface_hub import HfApi
@@ -292,7 +312,7 @@ def hf_has_model_file():
                for repo_id, _ in HF_MODEL_TARGETS)
 
 push_ok = False
-if final_losses['val'] <= best_val_loss:
+if final_losses is not None and final_losses['val'] <= best_val_loss:
     best_val_loss = final_losses['val']
     atomic_save({
         'model_state_dict': inference_state_dict(),
@@ -300,7 +320,7 @@ if final_losses['val'] <= best_val_loss:
         'stoi': stoi,
         'itos': itos,
         'arch': ARCH,
-        'step': EPOCHS,
+        'step': last_step + 1,
         'val_loss': best_val_loss,
     }, FINAL_PATH)
     print(f"Final model saved to {FINAL_PATH}")
@@ -310,10 +330,16 @@ if final_losses['val'] <= best_val_loss:
     else:
         print("⚠️  HF_TOKEN not set - download the final model from the Kaggle Output panel instead")
 else:
-    print("Last-step weights are worse than the best model, so the best one already on HF is kept.")
+    if stopped_early:
+        print("The best model found before early stopping is the final model.")
+    else:
+        print("Last-step weights are worse than the best model, so the best one already on HF is kept.")
     if config.HF_TOKEN:
         try:
             push_ok = hf_has_model_file()
+            if not push_ok and os.path.exists(BEST_PATH):
+                print("The model file is missing on HF, pushing the best model now...")
+                push_ok = push_to_both_repos(BEST_PATH, targets=HF_MODEL_TARGETS, token=config.HF_TOKEN)
         except Exception as e:
             print(f"   ⚠️  Could not confirm the model file on HF: {e}")
 
@@ -327,6 +353,10 @@ if push_ok:
 
 # ── Generate Text ─────────────────────────────────
 print("\n── Sainyx says: ──────────────────────────")
+if os.path.exists(BEST_PATH):
+    best_ck = torch.load(BEST_PATH, map_location=device, weights_only=True)
+    raw_model.load_state_dict(best_ck['model_state_dict'])
+    print(f"(best model: step {best_ck['step']}, val loss {best_ck['val_loss']:.4f})")
 raw_model.eval()
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
 generated = raw_model.generate(context, max_new_tokens=300)
