@@ -52,16 +52,21 @@ function showRoadmapNotice(feature) {
 
 function detectRequestMode(message) {
     const normalized = message.toLowerCase().replace(/[!?.,]/g, ' ');
-    if (/\b(video|animation|animate)\b/.test(normalized) &&
-        /\b(make|create|generate|animate|show)\b/.test(normalized)) {
+    const asksToGenerate = /\b(make|create|generate|draw|paint|illustrate|render|design|show|produce|animate|sketch|want|need|like)\b/.test(normalized);
+
+    if (/\b(video|animation|animated|animate|clip|movie)\b/.test(normalized) &&
+        asksToGenerate) {
         return 'video';
     }
     if (/\b(voice|speech|audio)\b/.test(normalized) &&
-        /\b(make|create|generate|convert|read|speak)\b/.test(normalized)) {
+        /\b(make|create|generate|convert|read|speak|produce|want|need|like)\b/.test(normalized)) {
         return 'voice';
     }
     if (/\b(image|picture|drawing|art|illustration)\b/.test(normalized) &&
-        /\b(make|create|generate|draw|paint|illustrate|render|design|show)\b/.test(normalized)) {
+        asksToGenerate) {
+        return 'image';
+    }
+    if (/^\s*(please\s+)?(draw|paint|illustrate|sketch)\b/.test(normalized)) {
         return 'image';
     }
     return null;
@@ -204,8 +209,7 @@ async function processMessage() {
     startOverlay();
 
     if (currentMode === 'voice') {
-        stopOverlay();
-        showRoadmapNotice(currentMode === 'voice' ? 'voice_generation' : 'api_layer');
+        await generateVoice(message);
         return;
     }
 
@@ -231,7 +235,7 @@ async function processMessage() {
         setMode(requestedMode, { manual: false });
         try {
             if (requestedMode === 'video') {
-                await generateVideo(message);
+                await generateVideo(extractVideoPrompt(message));
             } else if (requestedMode === 'image') {
                 await generateImage(extractImagePrompt(message));
             } else {
@@ -245,13 +249,13 @@ async function processMessage() {
 
     // Video: manually selected Video mode stays selected after generation.
     if (currentMode === 'video') {
-        generateVideo(message);
+        await generateVideo(message);
         return;
     }
 
     // Image: manually selected Image mode stays selected after generation.
     if (currentMode === 'image') {
-        generateImage(message);
+        await generateImage(message);
         return;
     }
 
@@ -384,4 +388,3 @@ async function copyApiText(button, text) {
         button.textContent = 'Copy failed';
     }
 }
-

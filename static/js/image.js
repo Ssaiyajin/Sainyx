@@ -65,6 +65,6 @@ function downloadImage(btn) {
 
 function extractImagePrompt(msg) {
     return msg
-        .replace(/generate|draw|create|make|paint|illustrate|render|show me|design|an image of|a picture of|image of|picture of/gi, '')
+        .replace(/^\s*(?:(?:please|can you|could you|would you|i want you to|i need you to|i want to|i need to|i'd like to|i want|i need|i'd like)\s+)*(?:(?:generate|draw|create|make|paint|illustrate|render|show|design|sketch)\s+)?(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:(?:image|picture|drawing|art|illustration|photo)\s+(?:of\s+)?)?/i, '')
         .trim();
 }
