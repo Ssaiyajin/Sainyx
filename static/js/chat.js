@@ -16,7 +16,7 @@ const input   = document.getElementById('user-input');
 // "revert to chat" logic able to tell the two cases apart.
 function setMode(mode, { manual = true } = {}) {
     currentMode = mode;
-    autoSwitched = !manual;
+    autoSwitched = !manual && mode !== 'chat';
     const apiGuide = document.getElementById('api-guide');
     const roadmapTitle = document.getElementById('roadmap-title');
     const roadmapList = document.getElementById('roadmap-list');
@@ -38,7 +38,7 @@ function setMode(mode, { manual = true } = {}) {
     };
     input.placeholder = hints[mode] || 'Ask anything...';
 
-    if (mode === 'data' || mode === 'scientist') {
+    if ((mode === 'data' || mode === 'scientist') && !attachedFile) {
         document.getElementById('file-input').click();
     }
 }
@@ -51,23 +51,47 @@ function showRoadmapNotice(feature) {
 }
 
 function detectRequestMode(message) {
-    const normalized = message.toLowerCase().replace(/[!?.,]/g, ' ');
-    const asksToGenerate = /\b(make|create|generate|draw|paint|illustrate|render|design|show|produce|animate|sketch|want|need|like)\b/.test(normalized);
+    const normalized = message.toLowerCase().replace(/[!?.,]/g, ' ').trim();
+    const asksForInformation = /^(?:(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?)?(?:what|why|how|when|where|who|explain|describe|tell me about|define|meaning|definition)\b/.test(normalized);
+    if (asksForInformation) return null;
 
+    const asksToGenerate = /\b(make|create|generate|draw|paint|illustrate|render|design|show|produce|animate|sketch|want|need|like|turn|convert|read|speak|say|play|synthesize)\b/.test(normalized);
+    if (/\b(api|api guide|api tab)\b/.test(normalized) &&
+        /\b(show|open|view|go to|api guide|api tab)\b/.test(normalized)) {
+        return 'api';
+    }
+    if (/\b(train|training|fit|predict|machine learning)\b/.test(normalized) &&
+        /\b(model|machine learning|data|dataset|csv|prediction|predict)\b/.test(normalized)) {
+        return 'scientist';
+    }
+    const asksForAnalysis = /\b(analy[sz]e|analysis|summari[sz]e|visuali[sz]e|explore|inspect|plot|chart|report)\b/.test(normalized);
+    const mentionsData = /\b(data|dataset|csv|file|spreadsheet|table|column|this|these|my)\b/.test(normalized);
+    if (asksForAnalysis && (mentionsData || /\b(analysis|plot|chart|report)\b/.test(normalized))) {
+        return 'data';
+    }
+    const shortVideoPrompt = normalized.split(/\s+/).length <= 4 &&
+        !/\b(?:is|are|was|were|watched|watch|saw|seen|like|liked|love|loved|hate|hated)\b/.test(normalized);
     if (/\b(video|animation|animated|animate|clip|movie)\b/.test(normalized) &&
-        asksToGenerate) {
+        (asksToGenerate || shortVideoPrompt)) {
         return 'video';
     }
+    const shortVoicePrompt = normalized.split(/\s+/).length <= 6 &&
+        /\b(voice|speech|audio)\b/.test(normalized);
     if (/\b(voice|speech|audio)\b/.test(normalized) &&
-        /\b(make|create|generate|convert|read|speak|produce|want|need|like)\b/.test(normalized)) {
+        (asksToGenerate || shortVoicePrompt)) {
         return 'voice';
     }
-    if (/\b(image|picture|drawing|art|illustration)\b/.test(normalized) &&
-        asksToGenerate) {
+    if (/\b(image|picture|drawing|art|illustration|photo)\b/.test(normalized) &&
+        (asksToGenerate ||
+            /\b[\w'-]+\s+(?:image|picture|drawing|art|illustration|photo)\b/.test(normalized) ||
+            /^(?:(?:a|an|the)\s+)?(?:image|picture|drawing|art|illustration|photo)\b/.test(normalized))) {
         return 'image';
     }
     if (/^\s*(please\s+)?(draw|paint|illustrate|sketch)\b/.test(normalized)) {
         return 'image';
+    }
+    if (/\b(read|speak|say)\b/.test(normalized) && /\b(aloud|out loud|voice|audio|speech)\b/.test(normalized)) {
+        return 'voice';
     }
     return null;
 }
@@ -206,56 +230,69 @@ async function processMessage() {
         setMode('chat');
     }
 
+    const requestedMode = currentMode === 'chat' ? detectRequestMode(message) : null;
+    if (requestedMode) {
+        setMode(requestedMode, { manual: false });
+        if (requestedMode === 'api') {
+            showApiGuide();
+            return;
+        }
+    }
+
     startOverlay();
 
     if (currentMode === 'voice') {
-        await generateVoice(message);
+        try {
+            await generateVoice(message);
+        } finally {
+            stopOverlay();
+            if (autoSwitched) setMode('chat');
+        }
         return;
     }
 
     // CSV attached
-    if (file && file.name.endsWith('.csv')) {
+    if (file && file.name.toLowerCase().endsWith('.csv')) {
         currentCSVFile = file;
         await sleep(500);
         stopOverlay();
 
         if (currentMode === 'data') {
-            runAnalysis(file);
+            try {
+                await runAnalysis(file);
+            } finally {
+                if (autoSwitched) setMode('chat');
+            }
         } else if (currentMode === 'scientist') {
-            runScientist(file);
+            try {
+                await runScientist(file);
+            } finally {
+                if (autoSwitched) setMode('chat');
+            }
         } else {
             showCSVOptions(file);
         }
         return;
     }
 
-    // Media requests from Chat temporarily switch to the matching tab.
-    const requestedMode = currentMode === 'chat' ? detectRequestMode(message) : null;
-    if (requestedMode) {
-        setMode(requestedMode, { manual: false });
+    if (currentMode === 'data' || currentMode === 'scientist') {
+        stopOverlay();
+        addBotMsg(currentMode === 'data'
+            ? 'Attach a CSV file to analyze it.'
+            : 'Attach a CSV file to train a model.');
+        return;
+    }
+
+    if (currentMode === 'video' || currentMode === 'image') {
         try {
-            if (requestedMode === 'video') {
-                await generateVideo(extractVideoPrompt(message));
-            } else if (requestedMode === 'image') {
-                await generateImage(extractImagePrompt(message));
+            if (currentMode === 'video') {
+                await generateVideo(extractVideoPrompt(message) || message);
             } else {
-                await generateVoice(message);
+                await generateImage(extractImagePrompt(message));
             }
         } finally {
-            if (autoSwitched) setMode('chat', { manual: false });
+            if (autoSwitched) setMode('chat');
         }
-        return;
-    }
-
-    // Video: manually selected Video mode stays selected after generation.
-    if (currentMode === 'video') {
-        await generateVideo(message);
-        return;
-    }
-
-    // Image: manually selected Image mode stays selected after generation.
-    if (currentMode === 'image') {
-        await generateImage(message);
         return;
     }
 

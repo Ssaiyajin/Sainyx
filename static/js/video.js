@@ -64,6 +64,7 @@ async function generateVideo(prompt) {
 function extractVideoPrompt(message) {
     return message
         .replace(/^\s*(?:(?:please|can you|could you|would you|i want you to|i need you to|i want to|i need to|i'd like to|i want|i need|i'd like)\s+)*(?:(?:generate|make|create|show|produce|animate|render|design)\s+)?(?:(?:me|us)\s+)?(?:(?:a|an|the)\s+)?(?:(?:short|animated)\s+)?(?:(?:video|animation|clip|movie)\s+(?:of\s+)?)?/i, '')
+        .replace(/\s+(?:video|animation|clip|movie)\s*$/i, '')
         .trim();
 }
 
