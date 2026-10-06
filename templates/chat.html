@@ -73,9 +73,58 @@
         <button class="cap-btn" id="cap-data" onclick="setMode('data')">📊 Data Analysis</button>
         <button class="cap-btn" id="cap-scientist" onclick="setMode('scientist')">🧪 Train Model</button>
         <button class="cap-btn" id="cap-image" onclick="setMode('image')">🎨 Image Gen</button>
-        <button class="cap-btn soon" title="Coming soon">🔊 Voice Gen</button>
-        <button class="cap-btn soon" title="Coming soon">🎬 Video Gen</button>
-        <button class="cap-btn soon" title="Coming soon">🌐 API</button>
+        <button class="cap-btn" id="cap-voice" onclick="setMode('voice')">🔊 Voice Gen</button>
+        <button class="cap-btn" id="cap-video" onclick="setMode('video')">🎬 Video Gen</button>
+        <button class="cap-btn" id="cap-api" onclick="toggleApiGuide()">🌐 API</button>
+    </div>
+
+    <div id="roadmap-card" class="roadmap-card">
+        <div id="api-guide" hidden>
+            <div class="roadmap-card-title">🌐 Sainyx API</div>
+            <p class="api-guide-copy">Use Sainyx from your app with an API URL and key. No Hugging Face account is needed to call the API.</p>
+            <div class="api-guide-section">
+                <div class="api-guide-label">1. API URL</div>
+                <div class="api-code-row"><code id="api-base-url">Loading URL...</code><button class="api-copy" onclick="copyApiBaseUrl(this)" title="Copy API URL">Copy</button></div>
+                <div class="api-guide-note">Use this as the base URL for your requests.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">2. Get an API key</div>
+                <div class="api-guide-note">Ask the Sainyx API owner for a key. Send it with each request as <strong>X-API-Key</strong>.</div>
+                <div class="api-guide-note"><strong>Owner setup:</strong> save the key as <strong>SAINYX_API_KEY</strong> in your Hugging Face Space settings and GitHub Actions secrets. Never share your Hugging Face account token.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">3. Try a request</div>
+                <div class="api-code-row api-code-block"><code id="api-generate-command">curl -X POST https://your-space.hf.space/api/v1/generate \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80}'</code><button class="api-copy" onclick="copyApiGenerate(this)" title="Copy generation request">Copy</button></div>
+                <div class="api-guide-note">The reply is in <strong>result.text</strong>. Use this request from a backend or terminal; don't put a private key in public browser code.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">Check available models</div>
+                <div class="api-code-row api-code-block"><code id="api-status-command">curl https://your-space.hf.space/api/v1/status</code><button class="api-copy" onclick="copyApiStatus(this)" title="Copy status command">Copy</button></div>
+                <div class="api-guide-note">This public endpoint shows which generation types are currently available.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">PowerShell example</div>
+                <div class="api-code-row api-code-block"><code id="api-powershell-command">$headers = @{ "X-API-Key" = "YOUR_API_KEY" }
+Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate" -Headers $headers -ContentType "application/json" -Body '{"type":"text","prompt":"Who is Goku?","max_tokens":80}'</code><button class="api-copy" onclick="copyApiPowerShell(this)" title="Copy PowerShell request">Copy</button></div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">More options</div>
+                <div class="api-guide-note">Use <strong>async: true</strong> for long jobs or <strong>response_format: binary</strong> to download media. See the <a href="/api/v1/openapi.yaml" target="_blank" rel="noopener">API specification</a> for all options and examples.</div>
+            </div>
+            <div class="api-guide-section">
+                <div class="api-guide-label">Available types</div>
+                <div class="api-types"><span>text</span><span>image</span><span>video</span><span>voice</span></div>
+                <div class="api-guide-note">Limits: 64 KiB/request and 60 requests/minute/IP. Image prompts are metadata only; video is one PNG frame; voice is a tone demo, not speech.</div>
+            </div>
+        </div>
+        <div id="roadmap-title" class="roadmap-card-title">🛣️ Roadmap</div>
+        <div id="roadmap-list" class="roadmap-list">
+            <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Voice generation</span></div>
+            <div class="roadmap-item"><span class="roadmap-pill planned">Planned</span><span>Styled image presets</span></div>
+        </div>
     </div>
 
     <div id="chat-box"></div>
@@ -103,10 +152,11 @@
 </div>
 
 <script src="/static/js/overlay.js"></script>
-<script src="/static/js/chat.js"></script>
+<script src="/static/js/chat.js?v=5"></script>
 <script src="/static/js/data.js"></script>
 <script src="/static/js/scientist.js"></script>
-<script src="/static/js/image.js"></script>
+<script src="/static/js/image.js?v=2"></script>
+<script src="/static/js/video.js?v=3"></script>
 <script src="/static/js/boot.js"></script>
 </body>
 </html>

@@ -37,7 +37,6 @@ async function generateImage(prompt) {
             <div style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--border);flex-wrap:wrap;">
                 <button class="act-btn primary" onclick="downloadImage(this)">⬇ Download</button>
                 <button class="act-btn" onclick="generateImage('${safePrompt}')">↺ Regenerate</button>
-                <button class="act-btn" onclick="generateImage('${safePrompt}, game asset, transparent background')">🎮 Game Asset</button>
                 <button class="act-btn" onclick="generateImage('${safePrompt}, concept art')">🎭 Concept Art</button>
             </div>
         </div>
@@ -53,22 +52,19 @@ async function generateImage(prompt) {
 }
 
 function downloadImage(btn) {
-    const a = document.createElement('a');
-    a.href = 'data:image/png;base64,' + btn.dataset.img;
-    a.download = 'sainyx-' + btn.dataset.name + '.png';
-    a.click();
-}
-
-function isImageRequest(msg) {
-    const triggers = [
-        'generate', 'draw', 'create image', 'make image',
-        'paint', 'illustrate', 'show me', 'render', 'design'
-    ];
-    return triggers.some(t => msg.toLowerCase().includes(t));
+    const bytes = Uint8Array.from(atob(btn.dataset.img), char => char.charCodeAt(0));
+    const imageUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = 'sainyx-' + (btn.dataset.name || 'image') + '.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(imageUrl);
 }
 
 function extractImagePrompt(msg) {
     return msg
-        .replace(/generate|draw|create|make|paint|illustrate|render|show me|design|an image of|a picture of|image of|picture of/gi, '')
+        .replace(/^\s*(?:(?:please|can you|could you|would you|i want you to|i need you to|i want to|i need to|i'd like to|i want|i need|i'd like)\s+)*(?:(?:generate|draw|create|make|paint|illustrate|render|show|design|sketch)\s+)?(?:(?:me|us)\s+)?(?:(?:an?|the)\s+)?(?:(?:image|picture|drawing|art|illustration|photo)\s+(?:of\s+)?)?/i, '')
         .trim();
 }

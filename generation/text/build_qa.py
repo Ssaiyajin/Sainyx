@@ -1,3 +1,8 @@
+import os
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+OUTPUT_PATH = os.path.join(PROJECT_ROOT, 'data', 'text', 'qa_pairs.txt')
+
 # ── Dragon Ball Q&A ───────────────────────────────
 dragonball_qa = """
 Question: Who is Goku?
@@ -161,7 +166,7 @@ Answer: Majin Buu is a magical being of pure destruction released by the wizard 
 all_qa = dragonball_qa + anime_qa + gaming_qa + extended_qa
 all_qa = all_qa * 15
 
-with open('data/qa_pairs.txt', 'w', encoding='utf-8') as f:
+with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
     f.write(all_qa)
 
 print(f"✅ Q&A dataset saved!")

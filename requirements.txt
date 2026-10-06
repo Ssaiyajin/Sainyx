@@ -1,5 +1,4 @@
 flask
-torch
 pandas
 matplotlib
 reportlab
@@ -8,3 +7,5 @@ Werkzeug
 huggingface_hub
 scikit-learn
 requests
+tqdm
+Pillow

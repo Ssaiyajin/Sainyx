@@ -1,12 +1,20 @@
 import torch
 import torch.nn.functional as F
+import os
+import sys
 from collections import OrderedDict
+
+# ── Make project root importable (chat.py now lives in generation/text/) ──
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(PROJECT_ROOT)
+
 from model.gpt import Sainyx, BLOCK_SIZE
 
 device = 'cpu'
 
 # ── Load model + vocab together ───────────────────
-checkpoint = torch.load('sainyx_v2_full.pt', map_location=device)
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sainyx_v3_57m.pt')
+checkpoint = torch.load(MODEL_PATH, map_location=device)
 
 chars = checkpoint['chars']
 stoi  = checkpoint['stoi']
