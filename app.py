@@ -6,6 +6,7 @@ routes share the same cached checkpoints instead of allocating duplicates.
 
 import os
 import io
+import time
 import base64
 
 import pandas as pd
@@ -21,6 +22,7 @@ from generation.data_analysis.scientist import train_model
 from generation.image.generate import generate_images
 from generation.audio.voice import generate_voice_audio
 from api.api import api
+from generation.text.retrieval import get_default_store
 from core.models.factory import get_image_model, get_text_model, get_video_model
 
 import config
@@ -59,6 +61,14 @@ diffusion_timesteps = image_result['timesteps'] if image_result else config.IMAG
 
 video_result = get_video_model()
 
+# Text chat answers come from stored text first (see generation/text/retrieval.py).
+qa_store = get_default_store()
+TEXT_FALLBACK = os.environ.get('SAINYX_TEXT_FALLBACK', 'decline').lower()
+TEXT_DECLINE_MESSAGE = (
+    "I don't have a reliable answer for that. I can answer questions about Dragon Ball, anime and the games "
+    "I was trained on, so try asking about a character, series or game by name."
+)
+
 
 # ── Flask app ──────────────────────────────────────
 app = Flask(__name__)
@@ -71,31 +81,55 @@ def home():
     return render_template('chat.html')
 
 
+def _sse(text):
+    return f"data: {text.replace(chr(10), ' ')}\n\n"
+
+
+def _stream_text(text, chunk=4, delay=0.012):
+    """Send a finished answer a few characters at a time so the UI keeps its typing effect."""
+    for i in range(0, len(text), chunk):
+        yield _sse(text[i:i + chunk])
+        time.sleep(delay)
+    yield "data: [DONE]\n\n"
+
+
+def _model_answer(user_input):
+    """Last-resort answer from the 57M model: full context window, low temperature, stops at the answer's end."""
+    prompt = f"Question: {user_input}\nAnswer:"
+    idx = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
+    text = ""
+    with torch.no_grad():
+        for _ in range(260):
+            logits, _ = model(idx[:, -model.block_size:])
+            logits = logits[:, -1, :] / 0.2
+            top = torch.topk(logits, 10)[0]
+            logits[logits < top[:, [-1]]] = -float('inf')
+            next_token = torch.multinomial(torch.nn.functional.softmax(logits, dim=-1), num_samples=1)
+            idx = torch.cat((idx, next_token), dim=1)
+            text += itos.get(next_token.item(), '?')
+            if '\n\n' in text or 'Question:' in text:
+                break
+    return text.split('\n\n')[0].split('Question:')[0].strip()
+
+
 @app.route('/chat', methods=['POST'])
 def chat():
-    user_input = request.json.get('message', '').strip()
+    user_input = (request.get_json(silent=True) or {}).get('message', '').strip()
     if not user_input:
         return jsonify({'response': '...'})
 
-    prompt = f"Question: {user_input}\nAnswer:"
-    context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
-
-    def generate_stream():
-        with torch.no_grad():
-            idx = context.clone()
-            for _ in range(80):
-                idx_cond = idx[:, -32:]
-                logits, _ = model(idx_cond)
-                logits = logits[:, -1, :]
-                probs = torch.nn.functional.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-                idx = torch.cat((idx, next_token), dim=1)
-                char = itos.get(next_token.item(), '?')
-                yield f"data: {char}\n\n"
-        yield "data: [DONE]\n\n"
+    # 1. Answer from stored Wikipedia / hand-written text when we can match the question.
+    hit = qa_store.answer(user_input)
+    if hit is not None:
+        reply = hit.text
+    # 2. Otherwise either say so (default) or let the small model try (SAINYX_TEXT_FALLBACK=model).
+    elif TEXT_FALLBACK == 'model':
+        reply = _model_answer(user_input) or TEXT_DECLINE_MESSAGE
+    else:
+        reply = TEXT_DECLINE_MESSAGE
 
     return Response(
-        stream_with_context(generate_stream()),
+        stream_with_context(_stream_text(reply)),
         mimetype='text/event-stream'
     )
 
