@@ -20,6 +20,7 @@ from generation.data_analysis.analyzer import analyze_csv, generate_charts, summ
 from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
 from generation.image.generate import generate_images
+from generation.image.tags import resolve_prompt
 from generation.audio.voice import generate_voice_audio
 from api.api import api
 from generation.text.retrieval import get_default_store, smalltalk
@@ -242,15 +243,24 @@ def generate_image():
     if diffusion_model is None:
         return jsonify({'error': 'Sainyx image model is not available. Add the image checkpoint and restart the Space.'}), 503
 
+    resolved = resolve_prompt(diffusion_model, prompt)
+    if resolved['error']:
+        return jsonify({'error': resolved['error'], 'unmatched_words': resolved['unmatched']}), 422
+
     try:
         samples = generate_images(
             diffusion_model, image_size=diffusion_image_size,
-            timesteps=diffusion_timesteps, num_images=1, device=device
+            timesteps=diffusion_timesteps, num_images=1, device=device,
+            tags=resolved['tags']
         )
         buffer = io.BytesIO()
         save_image(samples, buffer, format='PNG')
         img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        return jsonify({'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion'})
+        return jsonify({
+            'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion',
+            'prompt_conditioned': resolved['conditioned'],
+            'matched_tags': resolved['tags'], 'unmatched_words': resolved['unmatched'],
+        })
     except Exception as e:
         return jsonify({'error': f'Sainyx model generation failed: {e}'}), 500
 

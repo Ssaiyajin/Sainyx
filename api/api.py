@@ -163,6 +163,11 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
         return {"error": "image model is not available"}, 503
 
     from generation.image.generate import generate_images
+    from generation.image.tags import resolve_prompt
+
+    resolved = resolve_prompt(image_result["model"], prompt)
+    if resolved["error"]:
+        return {"error": resolved["error"], "unmatched_words": resolved["unmatched"]}, 422
 
     samples = generate_images(
         image_result["model"],
@@ -171,6 +176,7 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
         num_images=num_images,
         device=config.DEVICE,
         seed=seed,
+        tags=resolved["tags"],
     )
     image_bytes = []
     for sample in samples:
@@ -181,7 +187,9 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
     encoded_images = [base64.b64encode(item).decode("ascii") for item in image_bytes]
     payload = {
         "prompt": prompt,
-        "prompt_conditioned": False,
+        "prompt_conditioned": resolved["conditioned"],
+        "matched_tags": resolved["tags"],
+        "unmatched_words": resolved["unmatched"],
         "count": num_images,
         "seed": seed,
         "source": "sainyx-diffusion",
@@ -353,6 +361,17 @@ def _run_job(app, job_id: str, gen_type: str, body: dict, entry: GenerationType)
     try:
         with _generation_lock:
             payload, status_code = entry.generate(body)
+        if status_code == 422:
+            with _jobs_lock:
+                job = _jobs.get(job_id)
+                if job is not None:
+                    job.update(
+                        status="failed",
+                        error={"code": "prompt_not_understood",
+                               "message": payload.get("error", "Prompt not understood.")},
+                        updated_at=time.time(),
+                    )
+            return
         if status_code != 200:
             raise RuntimeError("Generation is unavailable")
         with _jobs_lock:
@@ -452,6 +471,9 @@ def generate():
     except Exception:
         current_app.logger.exception("API generation failed for type %s", gen_type)
         return _error("generation_failed", "Generation failed.", 500)
+    if status_code == 422:
+        return _error("prompt_not_understood", payload.get("error", "Prompt not understood."), 422,
+                      unmatched_words=payload.get("unmatched_words", []))
     if status_code != 200:
         return _error("generation_failed", payload.get("error", "Generation failed."), status_code)
     return _deliver_result(gen_type, payload, validated["response_format"])
@@ -498,6 +520,18 @@ def job_result(job_id: str):
     return _deliver_result(gen_type, payload, response_format)
 
 
+def _image_model_is_conditioned() -> bool:
+    """True only if an image model is already loaded and reads the prompt.
+    Looks at the cache and never triggers a model download."""
+    try:
+        from core.models.factory import ModelFactory
+    except ImportError:
+        return False
+
+    cached = ModelFactory._cache.get("image")
+    return bool(cached and getattr(cached["model"], "tag_vocab", None))
+
+
 @api.route("/status", methods=["GET"])
 def status():
     """Public capability check; does not require a generation API key."""
@@ -509,7 +543,7 @@ def status():
             "text": {"available": available["text"], "max_tokens": 500, "supports_seed": True},
             "image": {
                 "available": available["image"], "max_images": 4,
-                "supports_seed": True, "prompt_conditioned": False,
+                "supports_seed": True, "prompt_conditioned": _image_model_is_conditioned(),
             },
             "video": {
                 "available": available["video"], "supports_seed": True,

@@ -9,17 +9,37 @@
 # 2. Reverse process: start from pure noise and iteratively denoise
 #    using the trained U-Net (used during inference/generation)
 
+import math
+
 import torch
 import torch.nn.functional as F
 
 
+def cosine_betas(timesteps, s=0.008, max_beta=0.999):
+    """Cosine noise schedule (Nichol & Dhariwal). Destroys information more
+    gradually than the linear schedule, which matters at small resolutions."""
+    steps = torch.arange(timesteps + 1, dtype=torch.float64) / timesteps
+    alphas_cumprod = torch.cos((steps + s) / (1 + s) * math.pi / 2) ** 2
+    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+    return betas.clamp(max=max_beta).float()
+
+
 class DiffusionScheduler:
-    def __init__(self, timesteps=1000, beta_start=1e-4, beta_end=0.02, device='cpu'):
+    def __init__(self, timesteps=1000, beta_start=1e-4, beta_end=0.02, device='cpu',
+                 schedule='linear'):
         self.timesteps = timesteps
         self.device = device
+        self.schedule = schedule
 
-        # Linear beta schedule — how much noise is added at each step
-        self.betas = torch.linspace(beta_start, beta_end, timesteps).to(device)
+        # How much noise is added at each step. Old checkpoints use 'linear';
+        # the tag-conditioned model uses 'cosine'.
+        if schedule == 'cosine':
+            self.betas = cosine_betas(timesteps).to(device)
+        elif schedule == 'linear':
+            self.betas = torch.linspace(beta_start, beta_end, timesteps).to(device)
+        else:
+            raise ValueError(f"unknown noise schedule: {schedule}")
 
         self.alphas = 1.0 - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
@@ -113,3 +133,42 @@ class DiffusionScheduler:
 
         model.train()
         return x  # values roughly in [-1, 1] — denormalize before saving as image
+
+    @torch.no_grad()
+    def ddim_sample(self, model, image_size, batch_size=1, channels=3, device='cpu',
+                    generator=None, cond=None, guidance_scale=1.0, steps=50):
+        """
+        Deterministic DDIM sampling with optional classifier-free guidance.
+
+        cond is a [batch, num_tags] multi-hot tensor (or None for unconditional).
+        With guidance_scale > 1 the model is run with and without the tags and
+        the difference is amplified, which is what makes the image actually
+        follow the prompt.
+        """
+        model.eval()
+        x = torch.randn((batch_size, channels, image_size, image_size),
+                        device=device, generator=generator)
+        steps = min(steps, self.timesteps)
+        ts = torch.linspace(self.timesteps - 1, 0, steps).round().long().tolist()
+        use_guidance = cond is not None and guidance_scale != 1.0
+
+        for i, t in enumerate(ts):
+            tt = torch.full((batch_size,), t, device=device, dtype=torch.long)
+            if use_guidance:
+                eps_cond, eps_uncond = model(
+                    torch.cat([x, x]), torch.cat([tt, tt]),
+                    torch.cat([cond, torch.zeros_like(cond)]),
+                ).chunk(2)
+                eps = eps_uncond + guidance_scale * (eps_cond - eps_uncond)
+            elif cond is not None:
+                eps = model(x, tt, cond)
+            else:
+                eps = model(x, tt)
+
+            a_t = self.alphas_cumprod[t]
+            a_prev = self.alphas_cumprod[ts[i + 1]] if i + 1 < len(ts) else torch.ones((), device=device)
+            x0 = ((x - (1 - a_t).sqrt() * eps) / a_t.sqrt()).clamp(-1, 1)
+            eps = (x - a_t.sqrt() * x0) / (1 - a_t).sqrt()  # keep eps consistent with clipped x0
+            x = a_prev.sqrt() * x0 + (1 - a_prev).sqrt() * eps
+
+        return x

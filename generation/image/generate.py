@@ -10,7 +10,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.append(PROJECT_ROOT)
 
 from model.image_unet import UNet
+from model.image_unet_cond import CondUNet
 from generation.image.diffusion_scheduler import DiffusionScheduler
+from generation.image.tags import encode_indices
 
 
 def denormalize(img_tensor):
@@ -69,19 +71,48 @@ def upscale_to_1080p(pil_image, device='cpu'):
 
 def load_model(checkpoint_path, device='cpu'):
     """
-    Loads the consolidated sainyx_diffusion_full.pt file
-    (same format saved at the end of train.py).
+    Loads the consolidated sainyx_diffusion_full.pt file.
+
+    Two formats are supported:
+      * old unconditional models (UNet): the prompt cannot influence the image
+      * tag-conditioned models (CondUNet): the checkpoint has conditional=True and
+        carries its tag vocabulary. The vocabulary is attached to the returned
+        model as model.tag_vocab so callers can build conditioning from a prompt.
+
+    Returns (model, image_size, timesteps) in both cases.
     """
     checkpoint = torch.load(checkpoint_path, map_location=device)
 
-    model = UNet(
-        in_channels=checkpoint.get('channels', 3),
-        base_channels=checkpoint.get('base_channels', 64)
-    ).to(device)
+    if checkpoint.get('conditional'):
+        vocab = list(checkpoint['tag_vocab'])
+        arch = checkpoint.get('arch', {})
+        model = CondUNet(
+            in_channels=checkpoint.get('channels', 3),
+            base_channels=checkpoint.get('base_channels', 64),
+            ch_mult=tuple(arch.get('ch_mult', (1, 2, 4, 4))),
+            num_res_blocks=arch.get('num_res_blocks', 2),
+            attn_levels=tuple(arch.get('attn_levels', (2, 3))),
+            num_tags=len(vocab),
+        ).to(device)
+        model.tag_vocab = vocab
+        model.character_tags = list(checkpoint.get('character_tags', []))
+        model.schedule = checkpoint.get('schedule', 'cosine')
+        model.default_guidance = float(checkpoint.get('guidance_scale', 5.0))
+    else:
+        model = UNet(
+            in_channels=checkpoint.get('channels', 3),
+            base_channels=checkpoint.get('base_channels', 64)
+        ).to(device)
+        model.tag_vocab = None
+        model.character_tags = []
+        model.schedule = 'linear'
+        model.default_guidance = 1.0
+
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
-    print(f"✅ Loaded model — trained {checkpoint.get('epochs_trained', '?')} epochs, "
+    kind = 'tag-conditioned' if model.tag_vocab else 'unconditional'
+    print(f"✅ Loaded {kind} model — trained {checkpoint.get('epochs_trained', '?')} epochs, "
           f"final loss: {checkpoint.get('final_loss', '?')}")
 
     image_size = checkpoint.get('image_size', 64)
@@ -91,16 +122,37 @@ def load_model(checkpoint_path, device='cpu'):
 
 
 def generate_images(model, image_size, timesteps, num_images=4, device='cpu',
-                     save_path=None, upscale=False, seed=None):
-    scheduler = DiffusionScheduler(timesteps=timesteps, device=device)
+                     save_path=None, upscale=False, seed=None,
+                     tags=None, guidance_scale=None, steps=50):
+    """
+    tags: list of tag names to condition on (tag-conditioned models only).
+    guidance_scale: classifier-free guidance strength; defaults to the value
+    stored with the model (about 5). Higher follows the tags harder.
+    """
+    vocab = getattr(model, 'tag_vocab', None)
+    scheduler = DiffusionScheduler(
+        timesteps=timesteps, device=device, schedule=getattr(model, 'schedule', 'linear')
+    )
     generator = None
     if seed is not None:
         generator = torch.Generator(device=device).manual_seed(seed)
 
-    samples = scheduler.sample(
-        model, image_size=image_size, batch_size=num_images,
-        channels=3, device=device, generator=generator
-    )
+    if vocab:
+        cond = torch.zeros(num_images, len(vocab), device=device)
+        for idx in encode_indices(tags or [], vocab):
+            cond[:, idx] = 1.0
+        if guidance_scale is None:
+            guidance_scale = getattr(model, 'default_guidance', 5.0)
+        samples = scheduler.ddim_sample(
+            model, image_size=image_size, batch_size=num_images, channels=3,
+            device=device, generator=generator, cond=cond,
+            guidance_scale=guidance_scale, steps=steps,
+        )
+    else:
+        samples = scheduler.sample(
+            model, image_size=image_size, batch_size=num_images,
+            channels=3, device=device, generator=generator
+        )
     samples = denormalize(samples)
 
     if save_path:
