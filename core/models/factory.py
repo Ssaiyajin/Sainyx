@@ -163,7 +163,9 @@ class ModelFactory:
 
                 state, checkpoint = ModelFactory._load_video_weights(model_path)
                 base_ch = checkpoint.get("base_ch", config.VIDEO_BASE_CH_DEFAULT)
-                model = VideoUNet(base_ch=base_ch).to(config.DEVICE)
+                model = VideoUNet(
+                    base_ch=base_ch, temporal=checkpoint.get("temporal", "mix")
+                ).to(config.DEVICE)
                 model.load_state_dict(state)
                 model.eval()
 

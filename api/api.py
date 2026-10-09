@@ -206,23 +206,29 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
 
 def _generate_video(body: dict) -> Tuple[dict, int]:
     import config
-    from generation.video.render import generate_clip_gif
+    from generation.video.render import generate_video_bytes
 
     video_result = get_video_model()
     if video_result is None:
         return {"error": "video model is not available yet (still training)"}, 503
 
     seed = body.get("seed")
-    gif_bytes = generate_clip_gif(video_result, config.DEVICE, seed=seed)
+    seconds = max(1.0, min(float(body.get("seconds", 4)), 30.0))
+    fmt = "mp4" if body.get("format") == "mp4" else "gif"
+    media, fmt, n_frames = generate_video_bytes(
+        video_result, config.DEVICE, seconds=seconds, fps=16, seed=seed, steps=30, fmt=fmt
+    )
+    gif_bytes = media
     return {
-        "video_base64": base64.b64encode(gif_bytes).decode("ascii"),
-        "format": "gif",
-        "frames": video_result["clip_len"],
+        "video_base64": base64.b64encode(media).decode("ascii"),
+        "format": fmt,
+        "seconds": seconds,
+        "frames": n_frames,
         "seed": seed,
         "source": "sainyx-video",
         "_media_bytes": gif_bytes,
-        "_media_type": "image/gif",
-        "_filename": "sainyx-video.gif",
+        "_media_type": "video/mp4" if fmt == "mp4" else "image/gif",
+        "_filename": f"sainyx-video.{fmt}",
     }, 200
 
 
@@ -273,7 +279,7 @@ def _validated_request(body: dict):
     allowed_fields = {
         "text": {"type", "prompt", "max_tokens", "seed", "response_format", "async"},
         "image": {"type", "prompt", "num_images", "seed", "response_format", "async"},
-        "video": {"type", "seed", "response_format", "async"},
+        "video": {"type", "seed", "seconds", "format", "response_format", "async"},
         "voice": {"type", "text", "prompt", "voice", "response_format", "async"},
     }[gen_type]
     unknown = sorted(set(body) - allowed_fields)

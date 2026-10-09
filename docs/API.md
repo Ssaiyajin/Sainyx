@@ -81,7 +81,7 @@ curl -X POST https://YOUR_HOST/api/v1/generate \
   --output sainyx-image.png
 ```
 
-Video returns a short looping GIF clip (8 frames at 64x64 with the current model), base64-encoded as `video_base64` in JSON mode or as `image/gif` in binary mode. It supports an optional `seed` and JSON or binary response format. The endpoint returns `503` while its checkpoint is unavailable.
+Video returns a looping GIF (or MP4 with `"format": "mp4"`) at 64x64, 16 fps, length set by `seconds` (default 4, max 30 over the API), base64-encoded as `video_base64` in JSON mode or as `image/gif` in binary mode. It supports an optional `seed` and JSON or binary response format. The endpoint returns `503` while its checkpoint is unavailable.
 
 Voice accepts `text` (or the legacy `prompt` alias) and `voice` (`neutral` or `energetic`). Its current output is a small WAV tone demo with the text included as metadata; it does not yet speak the supplied text.
 

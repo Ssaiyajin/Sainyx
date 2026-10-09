@@ -11,7 +11,7 @@ import base64
 
 import pandas as pd
 import torch
-from generation.video.render import generate_clip_gif
+from generation.video.render import generate_video_bytes
 from torchvision.utils import save_image
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
@@ -270,9 +270,13 @@ def generate_video():
         return jsonify({'error': 'Video model not available yet — no checkpoint pushed from Kaggle.'})
 
     try:
-        gif_bytes = generate_clip_gif(video_result, device)
+        body = request.get_json(silent=True) or {}
+        seconds = max(1.0, min(float(body.get('seconds', 4)), 8.0))  # web cap; use the CLI for minutes
+        gif_bytes, _, n_frames = generate_video_bytes(
+            video_result, device, seconds=seconds, fps=16, steps=30, fmt='gif'
+        )
         gif_b64 = base64.b64encode(gif_bytes).decode('utf-8')
-        return jsonify({'gif': gif_b64, 'frames': video_result['clip_len'], 'source': 'sainyx-video'})
+        return jsonify({'gif': gif_b64, 'frames': n_frames, 'seconds': seconds, 'source': 'sainyx-video'})
     except Exception as e:
         return jsonify({'error': f'Video generation failed: {e}'})
 

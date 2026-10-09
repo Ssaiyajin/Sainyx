@@ -7,6 +7,7 @@ just pointed at ClipFolderDataset + VideoUNet instead of
 ImageFolderDataset + TinyUNet.
 """
 
+import copy
 import os
 import sys
 import torch
@@ -20,7 +21,6 @@ from model.video_unet import VideoUNet
 from generation.video.diffusion import NoiseScheduler
 from data.video.clip_dataset import ClipFolderDataset
 from core.utils.checkpoint_utils import (
-    save_checkpoint,
     load_checkpoint,
     push_checkpoint_to_hf,
     download_latest_checkpoint_from_hf,
@@ -29,16 +29,20 @@ from core.utils.checkpoint_utils import (
 
 # ---- Config -----------------------------------------------------------
 IMAGE_SIZE = 64
-CLIP_LEN = 8
-BATCH_SIZE = 8          # clips per batch; effective tensor is BATCH_SIZE*CLIP_LEN frames
+CLIP_LEN = 16
+BATCH_SIZE = 4          # clips per batch; effective tensor is BATCH_SIZE*CLIP_LEN frames
 EPOCHS = 100
 LR = 2e-4
+EMA_DECAY = 0.999
+BASE_CH = 64
+TEMPORAL = "v2"          # "mix" = old pooled block, "v2" = per-pixel temporal conv + attention
 TIMESTEPS = 1000
 SAVE_EVERY_STEPS = 200
 DATA_DIR = "/kaggle/working/data/video_clips"   # ClipFolderDataset root (clip_XXXX/ subfolders)
 LOCAL_CKPT_DIR = "/kaggle/working/checkpoints"
 HF_REPO_ID = "ssaiyajin/sainyx-model"
 HF_CKPT_PATH_IN_REPO = "video_gen/checkpoint_latest.pt"
+HF_FINAL_PATH_IN_REPO = "video_gen/sainyx_video_full.pt"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ------------------------------------------------------------------------
@@ -46,8 +50,28 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 os.makedirs(LOCAL_CKPT_DIR, exist_ok=True)
 
 
+def save_full(model, ema, optimizer, step, epoch, loss, path):
+    torch.save({
+        "model_state_dict": model.state_dict(),
+        "ema_state_dict": ema.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "step": step, "epoch": epoch, "loss": loss,
+        "base_ch": BASE_CH, "temporal": TEMPORAL,
+        "image_size": IMAGE_SIZE, "clip_len": CLIP_LEN, "timesteps": TIMESTEPS,
+    }, path)
+
+
+@torch.no_grad()
+def update_ema(ema, model):
+    for pe, pm in zip(ema.parameters(), model.parameters()):
+        pe.mul_(EMA_DECAY).add_(pm.detach(), alpha=1 - EMA_DECAY)
+
+
 def main():
-    model = VideoUNet(base_ch=64).to(DEVICE)
+    model = VideoUNet(base_ch=BASE_CH, temporal=TEMPORAL).to(DEVICE)
+    ema = copy.deepcopy(model).eval()
+    for p_ in ema.parameters():
+        p_.requires_grad_(False)
     optimizer = AdamW(model.parameters(), lr=LR)
     scheduler = NoiseScheduler(timesteps=TIMESTEPS, device=DEVICE)
 
@@ -64,6 +88,9 @@ def main():
             )
             start_epoch, global_step, last_loss = load_checkpoint(
                 model, optimizer, downloaded_path, device=DEVICE
+            )
+            ema.load_state_dict(
+                torch.load(downloaded_path, map_location=DEVICE).get("ema_state_dict", model.state_dict())
             )
             print(f"Resumed from epoch {start_epoch}, step {global_step}, loss {last_loss:.4f}")
         except Exception as e:
@@ -93,12 +120,13 @@ def main():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            update_ema(ema, model)
 
             global_step += 1
 
             if global_step % SAVE_EVERY_STEPS == 0:
                 ckpt_path = os.path.join(LOCAL_CKPT_DIR, f"checkpoint_step{global_step}.pt")
-                save_checkpoint(model, optimizer, global_step, epoch, loss.item(), ckpt_path)
+                save_full(model, ema, optimizer, global_step, epoch, loss.item(), ckpt_path)
                 print(f"[step {global_step}] loss={loss.item():.4f} saved -> {ckpt_path}")
 
                 if HF_TOKEN:
@@ -108,13 +136,19 @@ def main():
             if timer.should_stop():
                 print(f"Session time limit approaching ({timer.elapsed_minutes():.1f} min elapsed).")
                 ckpt_path = os.path.join(LOCAL_CKPT_DIR, "checkpoint_session_end.pt")
-                save_checkpoint(model, optimizer, global_step, epoch, loss.item(), ckpt_path)
+                save_full(model, ema, optimizer, global_step, epoch, loss.item(), ckpt_path)
                 if HF_TOKEN:
                     push_checkpoint_to_hf(ckpt_path, HF_REPO_ID, HF_CKPT_PATH_IN_REPO, HF_TOKEN)
                     print("Final checkpoint pushed to HF. Safe to let the session end.")
                 return
 
         print(f"Epoch {epoch} complete.")
+
+    final_path = os.path.join(LOCAL_CKPT_DIR, "sainyx_video_full.pt")
+    save_full(model, ema, optimizer, global_step, EPOCHS, loss.item(), final_path)
+    if HF_TOKEN:
+        push_checkpoint_to_hf(final_path, HF_REPO_ID, HF_FINAL_PATH_IN_REPO, HF_TOKEN)
+        print(f"Final model pushed to hf://{HF_REPO_ID}/{HF_FINAL_PATH_IN_REPO}")
 
 
 if __name__ == "__main__":

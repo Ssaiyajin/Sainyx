@@ -1,14 +1,18 @@
 """
 generation/video/sample.py
 
-Loads a trained VideoUNet checkpoint and generates an actual clip - T
-frames sampled jointly, saved out as a GIF you can watch move. This is
-the piece that used to silently degrade to "one PNG": the old sample.py
-called TinyUNet on a single-image shape and dumped a grid. This one calls
-scheduler.sample(..., num_frames=CLIP_LEN) and writes every frame out in
-order.
+Generate a clip or a long video from a trained VideoUNet checkpoint.
+
+    python generation/video/sample.py --seconds 8                  # short GIF
+    python generation/video/sample.py --seconds 120 --format mp4   # 2 minutes
+
+Long videos are made by chaining 16-frame chunks: each new chunk is generated
+with the last few frames of the previous one pinned (see
+NoiseScheduler.sample_ddim), so the video continues instead of restarting.
+Runs on a Kaggle T4 in minutes; on CPU expect it to be slow.
 """
 
+import argparse
 import os
 import sys
 import torch
@@ -17,63 +21,46 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.append(PROJECT_ROOT)
 
 from model.video_unet import VideoUNet
-from generation.video.diffusion import NoiseScheduler
-from core.utils.checkpoint_utils import load_checkpoint
+from generation.video.render import generate_video_bytes
 
-CHECKPOINT_PATH = "/kaggle/working/checkpoints/checkpoint_session_end.pt"
-IMAGE_SIZE = 64
-CLIP_LEN = 8
-BATCH_SIZE = 1          # clips to generate
-TIMESTEPS = 1000
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-OUTPUT_DIR = "/kaggle/working/samples"
+
+
+def load(path):
+    ckpt = torch.load(path, map_location=DEVICE)
+    state = ckpt.get("ema_state_dict") or ckpt["model_state_dict"]
+    model = VideoUNet(base_ch=ckpt.get("base_ch", 64), temporal=ckpt.get("temporal", "mix")).to(DEVICE)
+    model.load_state_dict(state)
+    model.eval()
+    return {
+        "model": model,
+        "image_size": ckpt.get("image_size", 64),
+        "clip_len": ckpt.get("clip_len", 8),
+        "timesteps": ckpt.get("timesteps", 1000),
+    }
 
 
 def main():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--checkpoint", default="/kaggle/working/checkpoints/sainyx_video_full.pt")
+    ap.add_argument("--out", default="/kaggle/working/samples")
+    ap.add_argument("--seconds", type=float, default=4.0)
+    ap.add_argument("--fps", type=int, default=16)
+    ap.add_argument("--steps", type=int, default=50, help="DDIM steps per chunk")
+    ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--format", choices=["gif", "mp4"], default="gif")
+    args = ap.parse_args()
 
-    model = VideoUNet(base_ch=64).to(DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters())
-    load_checkpoint(model, optimizer, CHECKPOINT_PATH, device=DEVICE)
-    model.eval()
-
-    scheduler = NoiseScheduler(timesteps=TIMESTEPS, device=DEVICE)
-
-    clips = scheduler.sample(
-        model,
-        image_size=IMAGE_SIZE,
-        batch_size=BATCH_SIZE,
-        channels=3,
-        num_frames=CLIP_LEN,
-        device=DEVICE,
-    )  # [B, T, C, H, W]
-
-    clips = (clips.clamp(-1, 1) + 1) / 2  # undo training normalization
-
-    try:
-        import imageio
-        HAVE_IMAGEIO = True
-    except ImportError:
-        HAVE_IMAGEIO = False
-        print("imageio not installed (pip install imageio) - saving PNG frames instead of GIF.")
-
-    for b in range(clips.shape[0]):
-        frames_uint8 = [
-            (clips[b, t].permute(1, 2, 0).cpu().numpy() * 255).astype("uint8")
-            for t in range(clips.shape[1])
-        ]
-
-        if HAVE_IMAGEIO:
-            gif_path = os.path.join(OUTPUT_DIR, f"clip_{b:02d}.gif")
-            imageio.mimsave(gif_path, frames_uint8, duration=0.15)
-            print(f"Saved {gif_path} ({len(frames_uint8)} frames)")
-        else:
-            frame_dir = os.path.join(OUTPUT_DIR, f"clip_{b:02d}")
-            os.makedirs(frame_dir, exist_ok=True)
-            from PIL import Image
-            for t, frame in enumerate(frames_uint8):
-                Image.fromarray(frame).save(os.path.join(frame_dir, f"frame_{t:02d}.png"))
-            print(f"Saved {len(frames_uint8)} frames -> {frame_dir}")
+    os.makedirs(args.out, exist_ok=True)
+    result = load(args.checkpoint)
+    data, fmt, n = generate_video_bytes(
+        result, DEVICE, seconds=args.seconds, fps=args.fps,
+        seed=args.seed, steps=args.steps, fmt=args.format,
+    )
+    path = os.path.join(args.out, f"sainyx_video.{fmt}")
+    with open(path, "wb") as f:
+        f.write(data)
+    print(f"Saved {path}: {n} frames at {args.fps} fps ({n / args.fps:.1f}s)")
 
 
 if __name__ == "__main__":
