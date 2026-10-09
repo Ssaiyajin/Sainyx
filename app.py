@@ -122,6 +122,8 @@ def chat():
     hit = qa_store.answer(user_input)
     if hit is not None:
         reply = hit.text
+        if hit.corrected:
+            reply = f"Showing results for {hit.matched}. {reply}"
     # 2. Otherwise either say so (default) or let the small model try (SAINYX_TEXT_FALLBACK=model).
     elif TEXT_FALLBACK == 'model':
         reply = _model_answer(user_input) or TEXT_DECLINE_MESSAGE

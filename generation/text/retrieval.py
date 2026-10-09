@@ -27,6 +27,7 @@ from typing import Iterable, List, Optional
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_STORE_PATH = os.path.join(_ROOT, "data", "text", "qa_store.json")
 DEFAULT_QA_SOURCE = os.path.join(_ROOT, "generation", "text", "build_qa.py")
+DEFAULT_CURATED_PATH = os.path.join(_ROOT, "data", "text", "curated_qa.json")
 
 STOPWORDS = frozenset("""
 a an the is are was were be been am do does did of in on at to for from by with and or but
@@ -64,6 +65,26 @@ def strip_question(norm: str) -> str:
         norm = _LEAD.sub("", norm, count=1)
         norm = _ARTICLE.sub("", norm, count=1)
     return norm.strip()
+
+
+def _osa(a: str, b: str) -> int:
+    """Edit distance where swapping two neighbouring letters (bulam -> bulma) counts as one typo."""
+    d = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1):
+        d[i][0] = i
+    for j in range(len(b) + 1):
+        d[0][j] = j
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            d[i][j] = min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                d[i][j] = min(d[i][j], d[i - 2][j - 2] + 1)
+    return d[len(a)][len(b)]
+
+
+def _max_typos(n: int) -> int:
+    return 0 if n <= 3 else 1 if n <= 5 else 2 if n <= 9 else 3
 
 
 def _stem(tok: str) -> str:
@@ -134,7 +155,9 @@ class Answer:
     title: str
     score: float
     method: str     # "entity" | "passage"
-    source: str     # "handwritten" | "wikipedia"
+    source: str     # "handwritten" | "curated" | "wikipedia"
+    matched: str = ""         # name the question was matched to, for "Showing results for ..."
+    corrected: bool = False   # True when the question had a typo that was fixed
 
 
 class QAStore:
@@ -170,24 +193,40 @@ class QAStore:
         return len(self.entries)
 
     # -- step 1: entity lookup --
+    def _display(self, entry_idx: int, key: str) -> str:
+        e = self.entries[entry_idx]
+        return key.title() if e.get("source") == "handwritten" else short_title(e["title"])
+
     def _entity(self, q: str) -> Optional[Answer]:
         if not q:
             return None
-        hit, score = self._keys.get(q), 1.0
+        hit, key, score, corrected = self._keys.get(q), q, 1.0, False
         qt = q.split()
         if hit is None and len(q) >= 4 and len(qt) <= 3:
             cands = [k for k in self._key_list if set(qt) <= set(k.split())]
             if cands:
-                hit, score = self._keys[min(cands, key=lambda k: (len(k), k))], 0.9
+                key = min(cands, key=lambda k: (len(k), k))
+                hit, score = self._keys[key], 0.9
         if hit is None and len(q) >= 4:
-            close = difflib.get_close_matches(q, self._key_list, n=1, cutoff=0.86)
-            if close:
-                hit = self._keys[close[0]]
-                score = difflib.SequenceMatcher(None, q, close[0]).ratio()
+            limit = _max_typos(len(q))
+            scored = []
+            for k in self._key_list:
+                if abs(len(k) - len(q)) > limit or (len(q) <= 6 and k[0] != q[0]):
+                    continue
+                d = _osa(q, k)
+                if d <= limit:
+                    scored.append((d, -difflib.SequenceMatcher(None, q, k).ratio(), k))
+            scored.sort()
+            if scored and not (len(scored) > 1 and scored[1][:2] == scored[0][:2]
+                               and self._keys[scored[1][2]] != self._keys[scored[0][2]]):
+                key = scored[0][2]
+                hit, corrected = self._keys[key], True
+                score = 1 - scored[0][0] / max(len(q), len(key))
         if hit is None:
             return None
         e = self.entries[hit]
-        return Answer(e["answer"], e["title"], score, "entity", e.get("source", "wikipedia"))
+        return Answer(e["answer"], e["title"], score, "entity", e.get("source", "wikipedia"),
+                      matched=self._display(hit, key), corrected=corrected)
 
     # -- step 2: passage lookup --
     def _passage(self, q: str, min_coverage: float = 0.75) -> Optional[Answer]:
@@ -205,7 +244,7 @@ class QAStore:
         if best is None:
             return None
         e = self.entries[best[1]]
-        return Answer(best[2], e["title"], best[0][0], "passage", e.get("source", "wikipedia"))
+        return Answer(best[2], e["title"], best[0][0], "passage", e.get("source", "wikipedia"), matched=short_title(e["title"]))
 
     def answer(self, query: str) -> Optional[Answer]:
         q = strip_question(normalize(query))
@@ -247,13 +286,22 @@ def handwritten_entries(source_path: str = DEFAULT_QA_SOURCE) -> List[dict]:
     return [{"title": q, "answer": a, "source": "handwritten"} for q, a in pairs]
 
 
+def curated_entries(path: str = DEFAULT_CURATED_PATH) -> List[dict]:
+    """Short checked answers for names Wikipedia only has as a section of a list page (Gogeta, Vegito, ...)."""
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [dict(e, source="curated") for e in json.load(f).get("entries", [])]
+
+
 _default = None
 
 
-def get_default_store(store_path: str = DEFAULT_STORE_PATH, qa_source: str = DEFAULT_QA_SOURCE) -> QAStore:
-    """Hand-written pairs always load; the Wikipedia store is added when it has been built."""
+def get_default_store(store_path: str = DEFAULT_STORE_PATH, qa_source: str = DEFAULT_QA_SOURCE,
+                      curated_path: str = DEFAULT_CURATED_PATH) -> QAStore:
+    """Priority order: hand-written, curated, then the Wikipedia store (when it has been built)."""
     global _default
     if _default is None:
-        hand = handwritten_entries(qa_source)
-        _default = QAStore.from_json(store_path, hand) if os.path.exists(store_path) else QAStore(hand)
+        first = handwritten_entries(qa_source) + curated_entries(curated_path)
+        _default = QAStore.from_json(store_path, first) if os.path.exists(store_path) else QAStore(first)
     return _default

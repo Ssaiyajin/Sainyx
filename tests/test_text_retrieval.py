@@ -1,6 +1,7 @@
 import json
 
 from generation.text.retrieval import (
+    curated_entries,
     QAStore, get_default_store, handwritten_entries, lead_to_sentences, make_answer,
     normalize, parse_qa_pairs, strip_question,
 )
@@ -98,3 +99,42 @@ def test_default_store_loads_json_when_present(tmp_path):
         assert store.answer("who is goku").source == "handwritten"
     finally:
         r._default = None
+
+
+def test_typos_are_corrected_and_reported():
+    store = QAStore(curated_entries())
+    for typo in ["BUlam", "bluma", "gogetta", "krilin", "Vegto"]:
+        a = store.answer(typo)
+        assert a is not None and a.corrected, typo
+    assert store.answer("BUlam").matched == "Bulma"
+    assert store.answer("bulma").corrected is False
+
+
+def test_curated_names_wikipedia_only_has_as_list_sections():
+    a = QAStore(curated_entries()).answer("Gogeta")
+    assert a is not None and "Goku and Vegeta" in a.text and not a.corrected
+    assert QAStore(curated_entries()).answer("bulla").matched == "Bulla"     # not "corrected" to Bulma
+
+
+def test_fragment_redirects_are_skipped_and_gaps_are_filled(monkeypatch):
+    import types
+    import generation.text.build_qa_store as b
+    calls = []
+
+    def get(url, headers=None, timeout=None, params=None):
+        calls.append(url)
+        R = lambda code, js=None: types.SimpleNamespace(status_code=code, json=lambda: js)
+        if "rest_v1" in url:
+            return R(200, {"type": "standard", "title": "Piccolo", "extract": "Piccolo is a Namekian."})
+        if len(calls) == 1:
+            return R(429)
+        return R(200, {"query": {
+            "pages": {"1": {"title": "Goku", "extract": "Goku is a Saiyan."},
+                      "2": {"title": "List of Dragon Ball characters", "extract": "This is a list."}},
+            "redirects": [{"from": "Gogeta", "to": "List of Dragon Ball characters", "tofragment": "Gogeta"},
+                          {"from": "Son Goku", "to": "Goku"}]}})
+
+    leads, aliases = b.fetch_leads(["Goku", "Gogeta", "Piccolo"], get=get, sleep=lambda _: None)
+    assert "List of Dragon Ball characters" not in leads      # section redirect dropped
+    assert leads["Goku"] and leads["Piccolo"]                  # 429 retried, missing page filled in
+    assert aliases == {"Goku": ["Son Goku"]}
