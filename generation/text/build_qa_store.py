@@ -1,10 +1,14 @@
-"""Build data/text/qa_store.json from the Wikipedia intro of every dataset topic.
+"""Build data/text/qa_store.json from Wikipedia: the intro of every topic, plus facts from the article body.
 
-Run from the repo root with internet access:  python -m generation.text.build_qa_store
+Run from the repo root with internet access:
+    python -m generation.text.build_qa_store              # intros + article text, about 10 minutes
+    python -m generation.text.build_qa_store --skip-body  # intros only, about 3 minutes
 Every answer is a sentence taken from Wikipedia, so nothing is generated or invented.
 """
+import argparse
 import json
 import os
+import re
 import time
 import urllib.parse
 from collections import Counter
@@ -12,7 +16,8 @@ from collections import Counter
 import requests
 
 import data.text.build_dataset as bd
-from generation.text.retrieval import DEFAULT_STORE_PATH, lead_to_sentences, make_answer, short_title
+from generation.text.retrieval import (DEFAULT_STORE_PATH, lead_to_sentences, make_answer, short_title,
+                                       split_sentences, strip_parens)
 
 
 def collect_titles():
@@ -23,6 +28,11 @@ def collect_titles():
         for cat, limit in cats:
             titles += bd.category_titles(cat, limit)
             time.sleep(1.0)
+    try:
+        from data.text.extra_topics import EXTRA_TITLES
+        titles += EXTRA_TITLES
+    except ImportError:
+        print("data/text/extra_topics.py not found, using the dataset topics only")
     return list(dict.fromkeys(titles))
 
 
@@ -93,8 +103,49 @@ def fetch_leads(titles, get=requests.get, sleep=time.sleep):
     return leads, aliases
 
 
-def main(path=DEFAULT_STORE_PATH):
-    leads, aliases = fetch_leads(collect_titles())
+def body_facts(text, have, limit=40):
+    """Sentences from the article text (after the intro) that read well on their own."""
+    out, seen = [], {x.lower() for x in have}
+    for line in text.split("\n"):
+        line = line.strip()
+        if len(line) < 80 or "." not in line:           # headings and list items
+            continue
+        for sent in split_sentences(strip_parens(line)):
+            if 50 <= len(sent) <= 320 and sent.lower() not in seen and sent[0].isupper():
+                seen.add(sent.lower())
+                out.append(sent)
+                if len(out) >= limit:
+                    return out
+    return out
+
+
+def fetch_body_facts(leads, get=requests.get, sleep=time.sleep, limit=40):
+    """One request per page (the API returns a full article for only one page at a time)."""
+    result = {}
+    for n, title in enumerate(leads, 1):
+        for k in range(3):
+            r = get(bd.API_URL, headers=bd.HEADERS, timeout=60, params={
+                "action": "query", "prop": "extracts", "explaintext": 1, "exsectionformat": "plain",
+                "titles": title, "format": "json"})
+            if r.status_code == 200:
+                pages = r.json().get("query", {}).get("pages", {}).values()
+                text = next((p.get("extract", "") for p in pages), "")
+                result[title] = body_facts(text, lead_to_sentences(leads[title]), limit)
+                break
+            if r.status_code in (429, 500, 502, 503, 504):
+                sleep(3 * (k + 1))
+                continue
+            break
+        if n % 50 == 0:
+            print(f"  body text: {n}/{len(leads)} pages")
+        sleep(0.5)
+    return result
+
+
+def main(path=DEFAULT_STORE_PATH, skip_body=False):
+    titles = collect_titles()
+    leads, aliases = fetch_leads(titles)
+    body = {} if skip_body else fetch_body_facts(leads)
     entries = []
     for title, lead in leads.items():
         sentences = lead_to_sentences(lead)
@@ -102,12 +153,19 @@ def main(path=DEFAULT_STORE_PATH):
         if not answer:
             continue
         entries.append({"title": title, "aliases": sorted(set(aliases.get(title, [])) - {title, short_title(title)}),
-                        "answer": answer, "facts": sentences, "source": "wikipedia"})
+                        "answer": answer, "facts": sentences + body.get(title, []), "source": "wikipedia"})
+    found = {e["title"].lower() for e in entries} | {a.lower() for e in entries for a in e["aliases"]}
+    missing = [t for t in titles if t.lower() not in found]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"version": 1, "entries": entries}, f, ensure_ascii=False, indent=1)
-    print(f"{len(entries)} entries written to {path}")
+    facts = sum(len(e["facts"]) for e in entries)
+    print(f"{len(entries)} entries and {facts} facts written to {path}")
+    print(f"{len(missing)} titles had no usable page (missing, disambiguation, or a section of a list):")
+    print("  " + "; ".join(missing[:60]) + (" ..." if len(missing) > 60 else ""))
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--skip-body", action="store_true", help="intros only, much faster")
+    main(skip_body=ap.parse_args().skip_body)

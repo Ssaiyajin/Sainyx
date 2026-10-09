@@ -138,3 +138,51 @@ def test_fragment_redirects_are_skipped_and_gaps_are_filled(monkeypatch):
     assert "List of Dragon Ball characters" not in leads      # section redirect dropped
     assert leads["Goku"] and leads["Piccolo"]                  # 429 retried, missing page filled in
     assert aliases == {"Goku": ["Son Goku"]}
+
+
+def test_greetings_help_and_thanks():
+    from generation.text.retrieval import smalltalk
+    store = QAStore(curated_entries())
+    assert "Dragon Ball" in smalltalk("Hello!", store) and "Bulma" in smalltalk("hi", store)
+    assert "Goku vs Vegeta" in smalltalk("what can you do?", store)
+    assert smalltalk("thanks", store).startswith("You're welcome")
+    assert smalltalk("who is goku", store) is None
+
+
+def test_compare_two_characters():
+    store = QAStore(curated_entries())
+    pair = store.compare("Bulma vs Gogeta")
+    assert pair and {pair[0].matched, pair[1].matched} == {"Bulma", "Gogeta"}
+    assert store.compare("difference between piccolo and krillin")
+    assert store.compare("bulma vs bulma") is None
+    assert store.compare("bulma vs somethingunknown") is None
+    assert store.compare("who is bulma") is None
+
+
+def test_did_you_mean_suggestions():
+    store = QAStore(curated_entries())
+    assert "Zamasu" in store.suggest("zamazu")
+    assert store.suggest("qqqq") == []
+
+
+def test_passage_answers_name_their_subject():
+    s = QAStore([{"title": "Goku", "answer": "Goku is a Saiyan.", "source": "wikipedia",
+                  "facts": ["He later marries Chi-Chi and has two sons, Gohan and Goten."]}])
+    a = s.answer("who did goku marry")
+    assert a is None or a.text.startswith("Goku: ")
+    a = s.answer("goku marries chi-chi")
+    assert a is not None and a.text.startswith("Goku: He later marries")
+
+
+def test_body_facts_skip_headings_and_duplicates():
+    import generation.text.build_qa_store as b
+    sentence = "The character first appeared in the 1984 manga and became the face of the whole franchise worldwide."
+    text = "Goku\nHistory\n" + sentence + " " + sentence + "\nSee also\n* Vegeta\n"
+    facts = b.body_facts(text, have=[])
+    assert facts == [sentence]
+    assert b.body_facts(text, have=[sentence]) == []
+
+
+def test_extra_topics_file_is_clean():
+    from data.text.extra_topics import EXTRA_TITLES
+    assert len(EXTRA_TITLES) > 200 and len(EXTRA_TITLES) == len(set(EXTRA_TITLES))

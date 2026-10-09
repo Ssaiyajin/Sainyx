@@ -244,17 +244,71 @@ class QAStore:
         if best is None:
             return None
         e = self.entries[best[1]]
-        return Answer(best[2], e["title"], best[0][0], "passage", e.get("source", "wikipedia"), matched=short_title(e["title"]))
+        text, name = best[2], short_title(e["title"])
+        if normalize(name) not in normalize(text):
+            text = f"{name}: {text}"
+        return Answer(text, e["title"], best[0][0], "passage", e.get("source", "wikipedia"), matched=name)
 
     def answer(self, query: str) -> Optional[Answer]:
         q = strip_question(normalize(query))
         return self._entity(q) or self._passage(q)
+
+    def compare(self, query: str):
+        """'goku vs vegeta' / 'difference between goku and vegeta' -> (Answer, Answer) or None."""
+        n = normalize(query)
+        m = re.match(r"^(?:what is the )?(?:difference between|compare) (.+?) (?:and|vs|versus|with|to) (.+)$", n) \
+            or re.match(r"^(.+?) (?:vs|versus) (.+)$", n)
+        if not m:
+            return None
+        first, second = self._entity(strip_question(m.group(1))), self._entity(strip_question(m.group(2)))
+        if first is None or second is None or first.matched == second.matched:
+            return None
+        return first, second
+
+    def suggest(self, query: str, limit: int = 3) -> List[str]:
+        """Close names for a question that found no answer, for 'Did you mean ...?'."""
+        q = strip_question(normalize(query))
+        if len(q) < 3:
+            return []
+        out = []
+        for k in difflib.get_close_matches(q, self._key_list, n=8, cutoff=0.72):
+            name = self._display(self._keys[k], k)
+            if name not in out:
+                out.append(name)
+        return out[:limit]
 
     @classmethod
     def from_json(cls, path: str, extra_entries: Iterable[dict] = ()):
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return cls(list(extra_entries) + data.get("entries", []))
+
+
+_GREETINGS = {"hi", "hello", "hey", "hiya", "yo", "sup", "good morning", "good evening", "good afternoon", "hello there", "hi there"}
+_HELP = {"help", "what can you do", "what do you do", "who are you", "what are you", "how does this work", "what can i ask"}
+_THANKS = {"thanks", "thank you", "thx", "ty", "thanks a lot", "cheers"}
+
+
+def smalltalk(query: str, store: Optional[QAStore] = None) -> Optional[str]:
+    """Fixed replies for greetings, thanks and 'what can you do'. No guessing involved."""
+    n = normalize(query)
+    if n in _THANKS:
+        return "You're welcome. Ask me about another character, series or game whenever you like."
+    if n in _GREETINGS or n in _HELP:
+        examples = []
+        if store is not None:
+            examples = [name for key, name in [("goku", "Goku"), ("bulma", "Bulma"), ("naruto uzumaki", "Naruto Uzumaki"),
+                                               ("elden ring", "Elden Ring")] if key in store._keys]
+        tail = ""
+        if len(examples) > 1:
+            tail = f" Try asking about {', '.join(examples[:-1])} or {examples[-1]}."
+        elif examples:
+            tail = f" Try asking about {examples[0]}."
+        if n in _GREETINGS:
+            return "Hi! I answer questions about Dragon Ball, anime and games." + tail
+        return ("I answer questions about Dragon Ball, anime and games using stored Wikipedia text. "
+                "Ask about a character, series or game by name, or compare two with 'Goku vs Vegeta'." + tail)
+    return None
 
 
 def parse_qa_pairs(text: str):

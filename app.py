@@ -22,7 +22,7 @@ from generation.data_analysis.scientist import train_model
 from generation.image.generate import generate_images
 from generation.audio.voice import generate_voice_audio
 from api.api import api
-from generation.text.retrieval import get_default_store
+from generation.text.retrieval import get_default_store, smalltalk
 from core.models.factory import get_image_model, get_text_model, get_video_model
 
 import config
@@ -118,17 +118,28 @@ def chat():
     if not user_input:
         return jsonify({'response': '...'})
 
-    # 1. Answer from stored Wikipedia / hand-written text when we can match the question.
-    hit = qa_store.answer(user_input)
-    if hit is not None:
+    # 1. Greetings, thanks and "what can you do" get a fixed reply.
+    reply = smalltalk(user_input, qa_store)
+    pair = None if reply else qa_store.compare(user_input)
+    hit = None if (reply or pair) else qa_store.answer(user_input)
+
+    # 2. Answer from stored Wikipedia / hand-written text when we can match the question.
+    if reply:
+        pass
+    elif pair:
+        reply = f"{pair[0].matched}: {pair[0].text} {pair[1].matched}: {pair[1].text}"
+    elif hit is not None:
         reply = hit.text
         if hit.corrected:
             reply = f"Showing results for {hit.matched}. {reply}"
-    # 2. Otherwise either say so (default) or let the small model try (SAINYX_TEXT_FALLBACK=model).
+    # 3. Otherwise either say so (default) or let the small model try (SAINYX_TEXT_FALLBACK=model).
     elif TEXT_FALLBACK == 'model':
         reply = _model_answer(user_input) or TEXT_DECLINE_MESSAGE
     else:
+        near = qa_store.suggest(user_input)
         reply = TEXT_DECLINE_MESSAGE
+        if near:
+            reply += " Did you mean " + (", ".join(near[:-1]) + " or " + near[-1] if len(near) > 1 else near[0]) + "?"
 
     return Response(
         stream_with_context(_stream_text(reply)),
