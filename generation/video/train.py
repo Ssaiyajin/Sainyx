@@ -35,14 +35,17 @@ EPOCHS = 100
 LR = 2e-4
 EMA_DECAY = 0.999
 BASE_CH = 64
+COND_FRAME = True        # image-to-video: frame 0 is given, the model animates it
 TEMPORAL = "v2"          # "mix" = old pooled block, "v2" = per-pixel temporal conv + attention
 TIMESTEPS = 1000
 SAVE_EVERY_STEPS = 200
 DATA_DIR = "/kaggle/working/data/video_clips"   # ClipFolderDataset root (clip_XXXX/ subfolders)
 LOCAL_CKPT_DIR = "/kaggle/working/checkpoints"
 HF_REPO_ID = "ssaiyajin/sainyx-model"
-HF_CKPT_PATH_IN_REPO = "video_gen/checkpoint_latest.pt"
-HF_FINAL_PATH_IN_REPO = "video_gen/sainyx_video_full.pt"
+# Separate folder on purpose: the live app still loads video_gen/sainyx_video_full.pt,
+# and an image-to-video model must not resume from (or overwrite) that old model.
+HF_CKPT_PATH_IN_REPO = "video_gen_i2v/checkpoint_latest.pt"
+HF_FINAL_PATH_IN_REPO = "video_gen_i2v/sainyx_video_i2v.pt"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ------------------------------------------------------------------------
@@ -56,7 +59,7 @@ def save_full(model, ema, optimizer, step, epoch, loss, path):
         "ema_state_dict": ema.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "step": step, "epoch": epoch, "loss": loss,
-        "base_ch": BASE_CH, "temporal": TEMPORAL,
+        "base_ch": BASE_CH, "temporal": TEMPORAL, "cond_frame": COND_FRAME,
         "image_size": IMAGE_SIZE, "clip_len": CLIP_LEN, "timesteps": TIMESTEPS,
     }, path)
 
@@ -68,7 +71,7 @@ def update_ema(ema, model):
 
 
 def main():
-    model = VideoUNet(base_ch=BASE_CH, temporal=TEMPORAL).to(DEVICE)
+    model = VideoUNet(base_ch=BASE_CH, temporal=TEMPORAL, cond_frame=COND_FRAME).to(DEVICE)
     ema = copy.deepcopy(model).eval()
     for p_ in ema.parameters():
         p_.requires_grad_(False)
@@ -113,9 +116,16 @@ def main():
             t = torch.randint(0, TIMESTEPS, (B,), device=DEVICE).long()
 
             noisy_clips, noise = scheduler.add_noise(batch, t)
-            predicted_noise = model(noisy_clips, t)
-
-            loss = torch.nn.functional.mse_loss(predicted_noise, noise)
+            if COND_FRAME:
+                # frame 0 is shown to the model clean (and as the cond input),
+                # exactly as at sampling time, and only frames 1.. are scored
+                first = batch[:, 0]
+                noisy_clips = torch.cat([first[:, None], noisy_clips[:, 1:]], dim=1)
+                predicted_noise = model(noisy_clips, t, cond=first)
+                loss = torch.nn.functional.mse_loss(predicted_noise[:, 1:], noise[:, 1:])
+            else:
+                predicted_noise = model(noisy_clips, t)
+                loss = torch.nn.functional.mse_loss(predicted_noise, noise)
 
             optimizer.zero_grad()
             loss.backward()
