@@ -215,8 +215,21 @@ def _generate_video(body: dict) -> Tuple[dict, int]:
     seed = body.get("seed")
     seconds = max(1.0, min(float(body.get("seconds", 4)), 30.0))
     fmt = "mp4" if body.get("format") == "mp4" else "gif"
+    first_frame = None
+    if getattr(video_result["model"], "cond_frame", False):
+        image_result = get_image_model()
+        if image_result is None:
+            return {"error": "image model is not available (needed for the first frame)"}, 503
+        from generation.video.first_frame import first_frame_from_prompt
+        first_frame, resolved = first_frame_from_prompt(
+            image_result["model"], image_result["image_size"], image_result["timesteps"],
+            body.get("prompt", ""), video_result["image_size"], config.DEVICE, seed=seed,
+        )
+        if resolved["error"]:
+            return {"error": resolved["error"], "unmatched_words": resolved["unmatched"]}, 422
     media, fmt, n_frames = generate_video_bytes(
-        video_result, config.DEVICE, seconds=seconds, fps=16, seed=seed, steps=30, fmt=fmt
+        video_result, config.DEVICE, seconds=seconds, fps=16, seed=seed, steps=30, fmt=fmt,
+        first_frame=first_frame,
     )
     gif_bytes = media
     return {
@@ -279,7 +292,7 @@ def _validated_request(body: dict):
     allowed_fields = {
         "text": {"type", "prompt", "max_tokens", "seed", "response_format", "async"},
         "image": {"type", "prompt", "num_images", "seed", "response_format", "async"},
-        "video": {"type", "seed", "seconds", "format", "response_format", "async"},
+        "video": {"type", "prompt", "seed", "seconds", "format", "response_format", "async"},
         "voice": {"type", "text", "prompt", "voice", "response_format", "async"},
     }[gen_type]
     unknown = sorted(set(body) - allowed_fields)

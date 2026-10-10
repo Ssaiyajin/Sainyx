@@ -67,7 +67,7 @@ def _interpolate(frames, factor):
 
 @torch.no_grad()
 def generate_long_frames(video_result, device, seconds=4.0, model_fps=8, overlap=4,
-                         steps=40, seed=None):
+                         steps=40, seed=None, first_frame=None):
     """Chain clips into one long frame sequence [N, C, H, W] in [-1, 1].
 
     The first chunk is unconditional; every later chunk is generated with the
@@ -85,14 +85,26 @@ def generate_long_frames(video_result, device, seconds=4.0, model_fps=8, overlap
         generator.manual_seed(int(seed))
 
     scheduler = NoiseScheduler(timesteps=video_result["timesteps"], device=device)
-    frames = scheduler.sample_ddim(
-        model, size, chunk, steps=steps, device=device, generator=generator
-    )[0]                                                   # [chunk, C, H, W]
+    i2v = getattr(model, "cond_frame", False)
+    if i2v and first_frame is None:
+        raise ValueError("this video model animates a first frame; pass first_frame")
+
+    if first_frame is not None and i2v:
+        ff = first_frame.to(device)[None]                  # [1, C, H, W]
+        frames = scheduler.sample_ddim(
+            model, size, chunk, steps=steps, known=ff[:, None], cond=ff,
+            device=device, generator=generator,
+        )[0]
+    else:
+        frames = scheduler.sample_ddim(
+            model, size, chunk, steps=steps, device=device, generator=generator
+        )[0]                                               # [chunk, C, H, W]
 
     while frames.shape[0] < total:
         known = frames[-overlap:][None]
         nxt = scheduler.sample_ddim(
-            model, size, chunk, steps=steps, known=known, device=device, generator=generator
+            model, size, chunk, steps=steps, known=known,
+            cond=known[:, 0] if i2v else None, device=device, generator=generator
         )[0]
         frames = torch.cat([frames, nxt[overlap:]], dim=0)
     return frames[:total]
@@ -124,11 +136,12 @@ def frames_to_mp4_bytes(frames, fps=16, scale=4):
 
 
 def generate_video_bytes(video_result, device, seconds=4.0, fps=16, seed=None,
-                         steps=40, fmt="gif"):
+                         steps=40, fmt="gif", first_frame=None):
     """Main entry for app/API/CLI. Returns (bytes, format_used, n_frames)."""
     model_fps = 8
     frames = generate_long_frames(video_result, device, seconds=seconds,
-                                  model_fps=model_fps, steps=steps, seed=seed)
+                                  model_fps=model_fps, steps=steps, seed=seed,
+                                  first_frame=first_frame)
     frames = _interpolate(frames, max(1, fps // model_fps))
     if fmt == "mp4":
         try:

@@ -152,8 +152,14 @@ class VideoUNet(nn.Module):
     """
 
     def __init__(self, channels_in=3, channels_out=3, base_ch=64, time_emb_dim=256,
-                 temporal="mix"):
+                 temporal="mix", cond_frame=False):
         super().__init__()
+        # cond_frame=True: image-to-video. The clean first frame is concatenated
+        # to every frame as 3 extra input channels, so the model animates a given
+        # picture instead of inventing a subject.
+        self.cond_frame = cond_frame
+        if cond_frame:
+            channels_in = channels_in * 2
         # temporal="mix": original pooled TemporalMix (old checkpoints).
         # temporal="v2":  TemporalBlock at every level + TemporalAttention in the
         #                 bottleneck (needed for real frame-to-frame motion).
@@ -187,14 +193,20 @@ class VideoUNet(nn.Module):
             nn.GroupNorm(8, base_ch), nn.SiLU(), nn.Conv2d(base_ch, channels_out, 3, padding=1)
         )
 
-    def forward(self, x, t):
+    def forward(self, x, t, cond=None):
         """
         x: [B, T, C, H, W]
+        cond: [B, C, H, W] clean first frame (only when cond_frame=True)
         t: [B] diffusion timestep, one per clip (broadcast across all T
            frames so the whole clip is noised/denoised together — this is
            what makes it a *video* model and not T independent images).
         """
         B, T, C, H, W = x.shape
+        if self.cond_frame:
+            if cond is None:
+                cond = torch.zeros(B, C, H, W, device=x.device, dtype=x.dtype)
+            x = torch.cat([x, cond[:, None].expand(-1, T, -1, -1, -1)], dim=2)
+            C = x.shape[2]
         x = x.reshape(B * T, C, H, W)
 
         if t.shape[0] == B:
@@ -225,7 +237,7 @@ class VideoUNet(nn.Module):
             x = self.temporal_up2(x, T)
 
         x = self.out_conv(x)
-        return x.reshape(B, T, C, H, W)
+        return x.reshape(B, T, -1, H, W)
 
 
 def count_params(model):

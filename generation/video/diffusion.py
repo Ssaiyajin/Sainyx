@@ -106,7 +106,7 @@ class NoiseScheduler:
     @torch.no_grad()
     def sample_ddim(
         self, model, image_size, num_frames, batch_size=1, channels=3,
-        steps=50, known=None, device="cuda", generator=None,
+        steps=50, known=None, cond=None, device="cuda", generator=None,
     ):
         """Deterministic DDIM sampling (eta=0) for clips, ~20x fewer model calls
         than the 1000-step ancestral loop above, using the same eps-prediction
@@ -115,7 +115,8 @@ class NoiseScheduler:
         known: optional [B, K, C, H, W] tensor in [-1, 1]. Those K frames are
         pinned to the start of the clip: at every step they are replaced by the
         real frames noised to the current level, so the model fills in the rest
-        so it continues them. This is how clips get chained into longer videos
+        so it continues them. With cond set, frame 0 is pinned clean instead of noised. cond: [B, C, H, W] first frame for image-to-video
+        models (VideoUNet(cond_frame=True)). This is how clips get chained into longer videos
         without retraining.
         """
         shape = (batch_size, num_frames, channels, image_size, image_size)
@@ -131,9 +132,14 @@ class NoiseScheduler:
                 a = self.sqrt_alphas_cumprod[t]
                 b = self.sqrt_one_minus_alphas_cumprod[t]
                 noise = torch.randn(known.shape, device=device, generator=generator)
-                x = torch.cat([a * known + b * noise, x[:, K:]], dim=1)
+                pinned = a * known + b * noise
+                if cond is not None:
+                    # image-to-video models were trained with a CLEAN frame 0
+                    # (see train.py), so frame 0 must stay clean here too
+                    pinned = torch.cat([known[:, :1], pinned[:, 1:]], dim=1)
+                x = torch.cat([pinned, x[:, K:]], dim=1)
 
-            eps = model(x, t_batch)
+            eps = model(x, t_batch) if cond is None else model(x, t_batch, cond=cond)
             a_t = self.alphas_cumprod[t]
             x0 = ((x - torch.sqrt(1 - a_t) * eps) / torch.sqrt(a_t)).clamp(-1, 1)
 

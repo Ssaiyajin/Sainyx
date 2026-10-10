@@ -272,8 +272,20 @@ def generate_video():
     try:
         body = request.get_json(silent=True) or {}
         seconds = max(1.0, min(float(body.get('seconds', 4)), 8.0))  # web cap; use the CLI for minutes
+        first_frame = None
+        if getattr(video_result['model'], 'cond_frame', False):
+            if diffusion_model is None:
+                return jsonify({'error': 'This video model animates an image, and the image model is not available.'}), 503
+            from generation.video.first_frame import first_frame_from_prompt
+            first_frame, resolved = first_frame_from_prompt(
+                diffusion_model, diffusion_image_size, diffusion_timesteps,
+                body.get('prompt', ''), video_result['image_size'], device,
+            )
+            if resolved['error']:
+                return jsonify({'error': resolved['error'], 'unmatched_words': resolved['unmatched']}), 422
         gif_bytes, _, n_frames = generate_video_bytes(
-            video_result, device, seconds=seconds, fps=16, steps=30, fmt='gif'
+            video_result, device, seconds=seconds, fps=16, steps=30, fmt='gif',
+            first_frame=first_frame,
         )
         gif_b64 = base64.b64encode(gif_bytes).decode('utf-8')
         return jsonify({'gif': gif_b64, 'frames': n_frames, 'seconds': seconds, 'source': 'sainyx-video'})
