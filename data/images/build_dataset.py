@@ -30,6 +30,8 @@ CHARACTER_TAGS = [
     "son_goku", "vegeta", "gogeta", "vegito", "son_gohan", "trunks_(dragon_ball)",
     "piccolo", "frieza", "cell_(dragon_ball)", "majin_buu", "krillin", "bulma",
     "broly_(dragon_ball_super)", "son_goten", "beerus", "whis",
+    "vegetto", "android_18", "yamcha", "tien_shinhan", "master_roshi", "videl",
+    "jiren", "goku_black",
 ]
 IMAGES_PER_CHARACTER = 800
 IMAGE_SIZE = 64

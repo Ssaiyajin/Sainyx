@@ -71,3 +71,8 @@ def test_resolve_prompt_refuses_unknown_prompt_with_suggestions():
     result = resolve_prompt(Model(), "a cat")
     assert result["error"] and "vegeta" in result["error"]
     assert result["tags"] == []
+
+
+def test_vegito_alias_finds_the_booru_spelling():
+    tags, unmatched = parse_prompt("vegito blue", VOCAB + ["vegetto"])
+    assert "vegetto" in tags and unmatched == []

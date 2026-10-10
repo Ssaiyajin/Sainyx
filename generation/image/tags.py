@@ -37,6 +37,7 @@ ALIASES = {
     "ssgss": ["super_saiyan_blue", "blue_hair"], "super saiyan blue": ["super_saiyan_blue", "blue_hair"],
     "blue": ["super_saiyan_blue", "blue_hair"], "gold": ["blonde_hair"], "golden": ["blonde_hair"],
     "yellow hair": ["blonde_hair"], "ultra instinct": ["ultra_instinct"],
+    "vegito": ["vegetto", "vegito"], "tien": ["tien_shinhan"], "roshi": ["master_roshi"],
     "saiyan": ["saiyan"], "fusion": ["fusion"], "man": ["1boy"], "boy": ["1boy"],
     "girl": ["1girl"], "woman": ["1girl"], "alone": ["solo"],
 }
