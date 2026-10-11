@@ -9,3 +9,5 @@ scikit-learn
 requests
 tqdm
 Pillow
+kokoro>=0.9.4
+soundfile
