@@ -17,7 +17,7 @@ from typing import Callable, Dict, NamedTuple, Tuple
 
 from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
-from generation.audio.voice import generate_voice
+from generation.audio.voice import generate_voice_audio
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -215,6 +215,7 @@ def _generate_video(body: dict) -> Tuple[dict, int]:
     seed = body.get("seed")
     seconds = max(1.0, min(float(body.get("seconds", 4)), 30.0))
     fmt = "mp4" if body.get("format") == "mp4" else "gif"
+    resolution = max(256, min(int(body.get("resolution", 1080)), 2160))
     first_frame = None
     if getattr(video_result["model"], "cond_frame", False):
         image_result = get_image_model()
@@ -228,7 +229,7 @@ def _generate_video(body: dict) -> Tuple[dict, int]:
         if resolved["error"]:
             return {"error": resolved["error"], "unmatched_words": resolved["unmatched"]}, 422
     media, fmt, n_frames = generate_video_bytes(
-        video_result, config.DEVICE, seconds=seconds, fps=16, seed=seed, steps=30, fmt=fmt,
+        video_result, config.DEVICE, seconds=seconds, fps=16, seed=seed, steps=30, fmt=fmt, resolution=resolution,
         first_frame=first_frame,
     )
     gif_bytes = media
@@ -248,14 +249,14 @@ def _generate_video(body: dict) -> Tuple[dict, int]:
 def _generate_voice(body: dict) -> Tuple[dict, int]:
     text = body.get("text", body.get("prompt", "")).strip()
     voice = body.get("voice", "neutral").strip().lower() or "neutral"
-    audio, backend = generate_voice(text, voice=voice)
+    audio = generate_voice_audio(text, voice=voice)
     return {
         "text": text,
         "voice": voice,
-        "speech_synthesis": backend == "kokoro",
+        "speech_synthesis": False,
         "audio_base64": base64.b64encode(audio).decode("ascii"),
         "mime_type": "audio/wav",
-        "source": "sainyx-kokoro-voice" if backend == "kokoro" else "sainyx-synthetic-voice",
+        "source": "sainyx-synthetic-voice",
         "_media_bytes": audio,
         "_media_type": "audio/wav",
         "_filename": "sainyx-voice.wav",
@@ -292,7 +293,7 @@ def _validated_request(body: dict):
     allowed_fields = {
         "text": {"type", "prompt", "max_tokens", "seed", "response_format", "async"},
         "image": {"type", "prompt", "num_images", "seed", "response_format", "async"},
-        "video": {"type", "prompt", "seed", "seconds", "format", "response_format", "async"},
+        "video": {"type", "prompt", "seed", "seconds", "format", "resolution", "response_format", "async"},
         "voice": {"type", "text", "prompt", "voice", "response_format", "async"},
     }[gen_type]
     unknown = sorted(set(body) - allowed_fields)

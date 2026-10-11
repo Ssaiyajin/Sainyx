@@ -11,7 +11,7 @@ import tempfile
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from generation.video.diffusion import NoiseScheduler
 
@@ -110,33 +110,47 @@ def generate_long_frames(video_result, device, seconds=4.0, model_fps=8, overlap
     return frames[:total]
 
 
-def frames_to_gif_bytes(frames, fps=16, scale=3):
+def frames_to_gif_bytes(frames, fps=16, size=512):
     arr = ((frames.clamp(-1, 1) + 1) / 2 * 255).byte().permute(0, 2, 3, 1).cpu().numpy()
-    size = (arr.shape[2] * scale, arr.shape[1] * scale)
-    imgs = [Image.fromarray(a).resize(size, Image.NEAREST) for a in arr]
+    imgs = _upscale(arr, size)
     buf = io.BytesIO()
     imgs[0].save(buf, format="GIF", save_all=True, append_images=imgs[1:],
                  duration=int(1000 / fps), loop=0)
     return buf.getvalue()
 
 
-def frames_to_mp4_bytes(frames, fps=16, scale=4):
-    """H.264 MP4 via imageio-ffmpeg. Raises ImportError if it is not installed,
-    so callers can fall back to GIF."""
+def _upscale(arr, size, sharpen=True):
+    """arr: [N, H, W, 3] uint8 -> list of PIL images at size x size.
+    Lanczos plus a light unsharp mask. This is interpolation, not new detail:
+    the model itself only draws 64x64."""
+    out = []
+    for a in arr:
+        im = Image.fromarray(a).resize((size, size), Image.LANCZOS)
+        if sharpen:
+            im = im.filter(ImageFilter.UnsharpMask(radius=max(2, size // 300), percent=70, threshold=2))
+        out.append(im)
+    return out
+
+
+def frames_to_mp4_bytes(frames, fps=16, height=1080):
+    """H.264 MP4 at height x height (square, so 1080 -> 1080x1080) via
+    imageio-ffmpeg. Raises if imageio-ffmpeg is missing, so callers can fall
+    back to GIF."""
     import imageio.v2 as imageio
     arr = ((frames.clamp(-1, 1) + 1) / 2 * 255).byte().permute(0, 2, 3, 1).cpu().numpy()
-    size = (arr.shape[2] * scale, arr.shape[1] * scale)
-    imgs = [np.asarray(Image.fromarray(a).resize(size, Image.NEAREST)) for a in arr]
+    height = int(height) - int(height) % 2          # yuv420p needs even sizes
+    imgs = [np.asarray(im) for im in _upscale(arr, height)]
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "out.mp4")
         imageio.mimsave(path, imgs, fps=fps, codec="libx264", quality=8,
-                        macro_block_size=1, pixelformat="yuv420p")
+                        macro_block_size=1, pixelformat="yuv420p",
+                        ffmpeg_params=["-preset", "veryfast", "-movflags", "+faststart"])
         with open(path, "rb") as f:
             return f.read()
 
 
 def generate_video_bytes(video_result, device, seconds=4.0, fps=16, seed=None,
-                         steps=40, fmt="gif", first_frame=None):
+                         steps=40, fmt="gif", first_frame=None, resolution=1080):
     """Main entry for app/API/CLI. Returns (bytes, format_used, n_frames)."""
     model_fps = 8
     frames = generate_long_frames(video_result, device, seconds=seconds,
@@ -145,7 +159,7 @@ def generate_video_bytes(video_result, device, seconds=4.0, fps=16, seed=None,
     frames = _interpolate(frames, max(1, fps // model_fps))
     if fmt == "mp4":
         try:
-            return frames_to_mp4_bytes(frames, fps=fps), "mp4", frames.shape[0]
+            return frames_to_mp4_bytes(frames, fps=fps, height=resolution), "mp4", frames.shape[0]
         except Exception:
             pass
     return frames_to_gif_bytes(frames, fps=fps), "gif", frames.shape[0]

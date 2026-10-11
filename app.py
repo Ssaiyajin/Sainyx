@@ -283,12 +283,16 @@ def generate_video():
             )
             if resolved['error']:
                 return jsonify({'error': resolved['error'], 'unmatched_words': resolved['unmatched']}), 422
-        gif_bytes, _, n_frames = generate_video_bytes(
-            video_result, device, seconds=seconds, fps=16, steps=30, fmt='gif',
-            first_frame=first_frame,
+        media, fmt, n_frames = generate_video_bytes(
+            video_result, device, seconds=seconds, fps=16, steps=30, fmt='mp4',
+            first_frame=first_frame, resolution=1080,
         )
-        gif_b64 = base64.b64encode(gif_bytes).decode('utf-8')
-        return jsonify({'gif': gif_b64, 'frames': n_frames, 'seconds': seconds, 'source': 'sainyx-video'})
+        media_b64 = base64.b64encode(media).decode('utf-8')
+        payload = {'media': media_b64, 'format': fmt, 'frames': n_frames,
+                   'seconds': seconds, 'source': 'sainyx-video'}
+        if fmt == 'gif':
+            payload['gif'] = media_b64          # old clients read this key
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'error': f'Video generation failed: {e}'})
 

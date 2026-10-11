@@ -24,8 +24,10 @@ async function generateVideo(prompt) {
             addBotMsg('❌ ' + (data.error || `Video generation failed (${res.status}).`));
             return;
         }
-        if (typeof data.gif !== 'string' || !data.gif) {
-            throw new Error('Video generation returned no GIF.');
+        const media = data.media || data.gif;
+        const isMp4 = data.format === 'mp4';
+        if (typeof media !== 'string' || !media) {
+            throw new Error('Video generation returned no video.');
         }
 
         const wrap = document.createElement('div');
@@ -34,20 +36,22 @@ async function generateVideo(prompt) {
             <div class="msg-label">Sainyx</div>
             <div class="result-card" style="max-width:520px;">
                 <div class="result-card-header">🎬 Video Generation</div>
-                <img class="generated-video" style="width:100%;display:block;" alt="">
+                ${isMp4
+                    ? '<video class="generated-video" style="width:100%;display:block;" autoplay loop muted playsinline controls></video>'
+                    : '<img class="generated-video" style="width:100%;display:block;" alt="">'}
                 <div style="padding:10px 14px;display:flex;gap:8px;border-top:1px solid var(--border);flex-wrap:wrap;">
-                    <button class="act-btn primary" type="button">⬇ Download GIF</button>
+                    <button class="act-btn primary" type="button">⬇ Download ${isMp4 ? 'MP4 (1080p)' : 'GIF'}</button>
                 </div>
             </div>
         `;
-        wrap.querySelector('.generated-video').src = `data:image/gif;base64,${data.gif}`;
+        wrap.querySelector('.generated-video').src = `data:${isMp4 ? 'video/mp4' : 'image/gif'};base64,${media}`;
         wrap.querySelector('.generated-video').alt = description;
         wrap.querySelector('.act-btn.primary').addEventListener('click', () => {
-            const bytes = Uint8Array.from(atob(data.gif), char => char.charCodeAt(0));
-            const videoUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+            const bytes = Uint8Array.from(atob(media), char => char.charCodeAt(0));
+            const videoUrl = URL.createObjectURL(new Blob([bytes], { type: isMp4 ? 'video/mp4' : 'image/gif' }));
             const link = document.createElement('a');
             link.href = videoUrl;
-            link.download = 'sainyx-video.gif';
+            link.download = isMp4 ? 'sainyx-video.mp4' : 'sainyx-video.gif';
             document.body.appendChild(link);
             link.click();
             link.remove();
