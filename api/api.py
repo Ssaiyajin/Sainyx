@@ -17,7 +17,7 @@ from typing import Callable, Dict, NamedTuple, Tuple
 
 from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
-from generation.audio.voice import generate_voice_audio
+from generation.audio.voice import generate_voice
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -249,14 +249,14 @@ def _generate_video(body: dict) -> Tuple[dict, int]:
 def _generate_voice(body: dict) -> Tuple[dict, int]:
     text = body.get("text", body.get("prompt", "")).strip()
     voice = body.get("voice", "neutral").strip().lower() or "neutral"
-    audio = generate_voice_audio(text, voice=voice)
+    audio, backend = generate_voice(text, voice=voice)
     return {
         "text": text,
         "voice": voice,
-        "speech_synthesis": False,
+        "speech_synthesis": backend == "kokoro",
         "audio_base64": base64.b64encode(audio).decode("ascii"),
         "mime_type": "audio/wav",
-        "source": "sainyx-synthetic-voice",
+        "source": "sainyx-kokoro-voice" if backend == "kokoro" else "sainyx-synthetic-voice",
         "_media_bytes": audio,
         "_media_type": "audio/wav",
         "_filename": "sainyx-voice.wav",

@@ -42,10 +42,13 @@ SAVE_EVERY_STEPS = 200
 DATA_DIR = "/kaggle/working/data/video_clips"   # ClipFolderDataset root (clip_XXXX/ subfolders)
 LOCAL_CKPT_DIR = "/kaggle/working/checkpoints"
 HF_REPO_ID = "ssaiyajin/sainyx-model"
-# Separate folder on purpose: the live app still loads video_gen/sainyx_video_full.pt,
-# and an image-to-video model must not resume from (or overwrite) that old model.
-HF_CKPT_PATH_IN_REPO = "video_gen_i2v/checkpoint_latest.pt"
-HF_FINAL_PATH_IN_REPO = "video_gen_i2v/sainyx_video_i2v.pt"
+# Same paths the app loads from. The finished model replaces the old
+# video_gen/sainyx_video_full.pt, so no config change is needed afterwards.
+HF_CKPT_PATH_IN_REPO = "video_gen/checkpoint_latest.pt"
+HF_FINAL_PATH_IN_REPO = "video_gen/sainyx_video_full.pt"
+# The staging repo gets a copy at its root, like the older notebook did.
+HF_STAGING_REPO_ID = "ssaiyajin/sainyx-staging"
+HF_STAGING_PATH_IN_REPO = "sainyx_video_full.pt"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ------------------------------------------------------------------------
@@ -89,6 +92,13 @@ def main():
             downloaded_path = download_latest_checkpoint_from_hf(
                 HF_REPO_ID, HF_CKPT_PATH_IN_REPO, LOCAL_CKPT_DIR, HF_TOKEN
             )
+            meta = torch.load(downloaded_path, map_location="cpu")
+            if meta.get("temporal") != TEMPORAL or bool(meta.get("cond_frame")) != COND_FRAME:
+                raise RuntimeError(
+                    "checkpoint on the Hub is the old video architecture; "
+                    "training starts fresh and will replace it"
+                )
+            del meta
             start_epoch, global_step, last_loss = load_checkpoint(
                 model, optimizer, downloaded_path, device=DEVICE
             )
@@ -159,6 +169,11 @@ def main():
     if HF_TOKEN:
         push_checkpoint_to_hf(final_path, HF_REPO_ID, HF_FINAL_PATH_IN_REPO, HF_TOKEN)
         print(f"Final model pushed to hf://{HF_REPO_ID}/{HF_FINAL_PATH_IN_REPO}")
+        try:
+            push_checkpoint_to_hf(final_path, HF_STAGING_REPO_ID, HF_STAGING_PATH_IN_REPO, HF_TOKEN)
+            print(f"Copy pushed to hf://{HF_STAGING_REPO_ID}/{HF_STAGING_PATH_IN_REPO}")
+        except Exception as e:
+            print(f"Staging push failed (main repo is fine): {e}")
 
 
 if __name__ == "__main__":

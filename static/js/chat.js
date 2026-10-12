@@ -33,7 +33,7 @@ function setMode(mode, { manual = true } = {}) {
         scientist: 'Attach a CSV to train a model →',
         image:     'Describe what to generate... e.g. "Goku ultra instinct, anime art, 4k',
         video:     'Describe the frame to generate... (Tier 1 — single unconditional frame)',
-        voice:     'Enter text for voice generation...',
+        voice:     'Ask a question and Sainyx will answer out loud...',
         api:       'Use the API guide above...'
     };
     input.placeholder = hints[mode] || 'Ask anything...';
@@ -96,24 +96,86 @@ function detectRequestMode(message) {
     return null;
 }
 
-async function generateVoice(message) {
-    addBotMsg(`Voice generation: <em>${message}</em>...`);
+// Strip markdown and links so the voice does not read symbols out loud.
+function cleanForSpeech(text) {
+    return text
+        .replace(/https?:\/\/\S+/g, 'link')
+        .replace(/[*_`#>~|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\s+([.,!?;:])/g, '$1')
+        .trim();
+}
+
+// Split into chunks of whole sentences so the first one starts playing quickly
+// while the rest are still being generated.
+function splitForSpeech(text, max = 450) {
+    const sentences = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
+    const chunks = [];
+    let current = '';
+    for (const sentence of sentences) {
+        if (current && (current + sentence).length > max) {
+            chunks.push(current.trim());
+            current = '';
+        }
+        current += sentence;
+        while (current.length > max) {           // a single very long sentence
+            const cut = current.lastIndexOf(' ', max) > 0 ? current.lastIndexOf(' ', max) : max;
+            chunks.push(current.slice(0, cut).trim());
+            current = current.slice(cut);
+        }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks;
+}
+
+async function fetchVoiceChunk(text) {
     const res = await fetch('/generate-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message })
+        body: JSON.stringify({ text })
     });
     const data = await res.json();
-    if (data.error) {
-        addBotMsg('❌ ' + data.error);
+    if (data.error) throw new Error(data.error);
+    return `data:${data.mime_type};base64,${data.audio_base64}`;
+}
+
+async function speakText(text, label) {
+    const chunks = splitForSpeech(cleanForSpeech(text));
+    if (!chunks.length) {
+        addBotMsg('There is nothing to read out loud yet.');
         return;
     }
-
     const wrap = addBotMsg(`
-        <div>🔊 Voice generation ready</div>
-        <audio controls style="width:100%;margin-top:10px;" src="data:${data.mime_type};base64,${data.audio_base64}"></audio>
+        <div>🔊 ${label}</div>
+        <audio controls style="width:100%;margin-top:10px;"></audio>
     `);
-    wrap.querySelector('audio')?.play().catch(() => {});
+    const player = wrap.querySelector('audio');
+
+    startOverlay();
+    try {
+        let next = fetchVoiceChunk(chunks[0]);
+        for (let i = 0; i < chunks.length; i++) {
+            const src = await next;
+            if (i === 0) stopOverlay();                        // first sentence is ready
+            if (i + 1 < chunks.length) next = fetchVoiceChunk(chunks[i + 1]);   // prefetch while this one plays
+            player.src = src;
+            let blocked = false;
+            await new Promise(resolve => {
+                player.onended = resolve;
+                player.onerror = resolve;
+                player.play().catch(() => { blocked = true; resolve(); });
+            });
+            if (blocked) break;                                 // browser blocked autoplay; the user can press play
+        }
+    } catch (err) {
+        addBotMsg('❌ ' + (err.message || 'Voice generation failed'));
+    } finally {
+        stopOverlay();
+    }
+}
+
+async function generateVoice(message) {
+    await speakText(message, 'Voice generation ready');
 }
 
 // ── WELCOME ───────────────────────────────────────
@@ -243,7 +305,14 @@ async function processMessage() {
 
     if (currentMode === 'voice') {
         try {
-            await generateVoice(message);
+            if (autoSwitched) {
+                // "say hello out loud" typed in chat: speak exactly what was asked
+                await generateVoice(message);
+            } else {
+                // Voice Gen tab: the chat model answers, and the answer is spoken
+                const reply = await streamChatReply(message);
+                if (reply) await speakText(reply, 'Spoken answer');
+            }
         } finally {
             stopOverlay();
             if (autoSwitched) setMode('chat');
@@ -297,6 +366,11 @@ async function processMessage() {
     }
 
     // text chat
+    return await streamChatReply(message);
+}
+
+// Sends a message to the chat model, streams the answer into the chat and returns its text.
+async function streamChatReply(message) {
     showTyping();
     const res = await fetch('/chat', {
         method: 'POST',
@@ -331,6 +405,7 @@ async function processMessage() {
             }
         }
     }
+    return streamDiv.textContent.trim();
 }
 
 // ── CSV OPTIONS ───────────────────────────────────

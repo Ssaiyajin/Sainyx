@@ -21,7 +21,7 @@ from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
 from generation.image.generate import generate_images
 from generation.image.tags import resolve_prompt
-from generation.audio.voice import generate_voice_audio
+from generation.audio.voice import generate_voice as synthesize_voice
 from api.api import api
 from generation.text.retrieval import get_default_store, smalltalk
 from core.models.factory import get_image_model, get_text_model, get_video_model
@@ -308,14 +308,14 @@ def generate_voice():
     if not isinstance(voice, str):
         return jsonify({'error': 'Voice must be a string'}), 400
 
-    audio = generate_voice_audio(text.strip(), voice=voice.strip() or 'neutral')
+    audio, backend = synthesize_voice(text.strip(), voice=voice.strip() or 'neutral')
     return jsonify({
         'status': 'ready',
         'text': text.strip(),
         'voice': voice.strip() or 'neutral',
         'audio_base64': base64.b64encode(audio).decode('ascii'),
         'mime_type': 'audio/wav',
-        'source': 'sainyx-synthetic-voice'
+        'source': 'sainyx-kokoro-voice' if backend == 'kokoro' else 'sainyx-synthetic-voice'
     })
 
 
