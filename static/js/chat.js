@@ -139,39 +139,61 @@ async function fetchVoiceChunk(text) {
     return `data:${data.mime_type};base64,${data.audio_base64}`;
 }
 
+// Generates speech one chunk at a time (in order) and plays each chunk as soon as it is ready,
+// so sound can start while later sentences are still being generated or even still being written.
+function createSpeechQueue(label) {
+    let genChain = Promise.resolve();
+    let playChain = Promise.resolve();
+    let status = null, player = null, failed = false, started = false;
+
+    function ensurePlayer() {
+        if (player) return;
+        const wrap = addBotMsg(`
+            <div class="voice-status">🔊 Generating voice...</div>
+            <audio controls style="width:100%;margin-top:10px;"></audio>
+        `);
+        status = wrap.querySelector('.voice-status');
+        player = wrap.querySelector('audio');
+    }
+
+    return {
+        add(text) {
+            const clean = cleanForSpeech(text);
+            if (!clean) return;
+            ensurePlayer();
+            const audio = genChain.then(() => fetchVoiceChunk(clean));
+            genChain = audio.catch(() => {});                 // keep generating in order even if one fails
+            playChain = playChain.then(async () => {
+                if (failed) return;
+                try {
+                    const src = await audio;
+                    if (!started) { started = true; stopOverlay(); }
+                    status.textContent = '🔊 ' + label;
+                    player.src = src;
+                    await new Promise(resolve => {
+                        player.onended = resolve;
+                        player.onerror = resolve;
+                        player.play().catch(() => { failed = true; resolve(); });   // autoplay blocked: user can press play
+                    });
+                } catch (err) {
+                    failed = true;
+                    if (status) status.textContent = '❌ ' + (err.message || 'Voice generation failed');
+                }
+            });
+        },
+        done() { return playChain; }
+    };
+}
+
 async function speakText(text, label) {
-    const chunks = splitForSpeech(cleanForSpeech(text));
+    const chunks = splitForSpeech(cleanForSpeech(text), 220);
     if (!chunks.length) {
         addBotMsg('There is nothing to read out loud yet.');
         return;
     }
-    const wrap = addBotMsg(`
-        <div>🔊 ${label}</div>
-        <audio controls style="width:100%;margin-top:10px;"></audio>
-    `);
-    const player = wrap.querySelector('audio');
-
-    startOverlay();
-    try {
-        let next = fetchVoiceChunk(chunks[0]);
-        for (let i = 0; i < chunks.length; i++) {
-            const src = await next;
-            if (i === 0) stopOverlay();                        // first sentence is ready
-            if (i + 1 < chunks.length) next = fetchVoiceChunk(chunks[i + 1]);   // prefetch while this one plays
-            player.src = src;
-            let blocked = false;
-            await new Promise(resolve => {
-                player.onended = resolve;
-                player.onerror = resolve;
-                player.play().catch(() => { blocked = true; resolve(); });
-            });
-            if (blocked) break;                                 // browser blocked autoplay; the user can press play
-        }
-    } catch (err) {
-        addBotMsg('❌ ' + (err.message || 'Voice generation failed'));
-    } finally {
-        stopOverlay();
-    }
+    const queue = createSpeechQueue(label);
+    chunks.forEach(chunk => queue.add(chunk));
+    await queue.done();
 }
 
 async function generateVoice(message) {
@@ -310,8 +332,9 @@ async function processMessage() {
                 await generateVoice(message);
             } else {
                 // Voice Gen tab: the chat model answers, and the answer is spoken
-                const reply = await streamChatReply(message);
-                if (reply) await speakText(reply, 'Spoken answer');
+                const queue = createSpeechQueue('Spoken answer');
+                await streamChatReply(message, sentence => queue.add(sentence));
+                await queue.done();
             }
         } finally {
             stopOverlay();
@@ -370,7 +393,7 @@ async function processMessage() {
 }
 
 // Sends a message to the chat model, streams the answer into the chat and returns its text.
-async function streamChatReply(message) {
+async function streamChatReply(message, onSentence) {
     showTyping();
     const res = await fetch('/chat', {
         method: 'POST',
@@ -389,6 +412,26 @@ async function streamChatReply(message) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let pending = '';   // text not yet handed to onSentence
+
+    // Hand over complete sentences (at least ~30 characters) as soon as they are written.
+    const flush = (final) => {
+        if (!onSentence) return;
+        if (final) {
+            if (pending.trim()) onSentence(pending);
+            pending = '';
+            return;
+        }
+        let cut = -1;
+        const re = /[.!?]+(?=\s)/g;
+        let m;
+        while ((m = re.exec(pending)) !== null) cut = m.index + m[0].length;
+        if (cut < 0 && pending.length > 300) cut = pending.lastIndexOf(' ');   // very long sentence
+        if (cut > 30) {
+            onSentence(pending.slice(0, cut));
+            pending = pending.slice(cut);
+        }
+    };
 
     while (true) {
         const { done, value } = await reader.read();
@@ -401,10 +444,13 @@ async function streamChatReply(message) {
                 const char = line.slice(6);
                 if (char === '[DONE]') { stopOverlay(); break; }
                 streamDiv.textContent += char;
+                pending += char;
+                flush(false);
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
         }
     }
+    flush(true);
     return streamDiv.textContent.trim();
 }
 

@@ -6,6 +6,7 @@ import math
 import os
 import threading
 import wave
+from collections import OrderedDict
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +22,10 @@ MAX_CHARS = int(os.environ.get("SAINYX_VOICE_MAX_CHARS", "600"))
 _pipelines: dict = {}
 _lock = threading.Lock()
 _kokoro_missing = False
+
+# Small in-memory cache so a repeated phrase (greetings, the same answer twice) is instant.
+_CACHE_SIZE = int(os.environ.get("SAINYX_VOICE_CACHE", "32"))
+_cache: "OrderedDict[tuple, bytes]" = OrderedDict()
 
 
 def _get_pipeline(lang_code: str):
@@ -88,8 +93,16 @@ def generate_voice(text: str, voice: str = "neutral") -> tuple[bytes, str]:
     global _kokoro_missing
     wanted = os.environ.get("SAINYX_VOICE_BACKEND", "kokoro").lower()
     if wanted != "tone" and not _kokoro_missing and text.strip():
+        key = (text[:MAX_CHARS], voice)
+        if key in _cache:
+            _cache.move_to_end(key)
+            return _cache[key], "kokoro"
         try:
-            return _synthesize_kokoro(text[:MAX_CHARS], voice), "kokoro"
+            audio = _synthesize_kokoro(key[0], voice)
+            _cache[key] = audio
+            while len(_cache) > _CACHE_SIZE:
+                _cache.popitem(last=False)
+            return audio, "kokoro"
         except ImportError:
             _kokoro_missing = True
             log.warning("kokoro is not installed, falling back to the placeholder tone")
@@ -100,3 +113,18 @@ def generate_voice(text: str, voice: str = "neutral") -> tuple[bytes, str]:
 
 def generate_voice_audio(text: str, voice: str = "neutral") -> bytes:
     return generate_voice(text, voice)[0]
+
+
+def warm_up() -> None:
+    """Load Kokoro in a background thread so the first real request is not the slow one."""
+    if os.environ.get("SAINYX_VOICE_BACKEND", "kokoro").lower() == "tone":
+        return
+
+    def _run():
+        try:
+            _synthesize_kokoro("Ready.", "neutral")
+            log.info("Kokoro voice warmed up")
+        except Exception:
+            log.warning("Kokoro warm-up skipped", exc_info=True)
+
+    threading.Thread(target=_run, daemon=True).start()

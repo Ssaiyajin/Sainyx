@@ -14,6 +14,11 @@ RUN pip install --no-cache-dir torch torchvision --index-url https://download.py
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# download Kokoro's weights and voice during the build so the first request does not have to
+# (never fails the build: the app falls back to downloading at runtime)
+RUN python -c "from kokoro import KPipeline; p = KPipeline(lang_code='b'); list(p('Ready.', voice='bm_george'))" \
+    || echo "voice pre-download skipped"
+
 # copy code after (changes here don't invalidate pip cache)
 COPY . .
 

@@ -21,7 +21,7 @@ from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
 from generation.image.generate import generate_images
 from generation.image.tags import resolve_prompt
-from generation.audio.voice import generate_voice as synthesize_voice
+from generation.audio.voice import generate_voice as synthesize_voice, warm_up as warm_up_voice
 from api.api import api
 from generation.text.retrieval import get_default_store, smalltalk
 from core.models.factory import get_image_model, get_text_model, get_video_model
@@ -340,4 +340,5 @@ def feature_status():
     })
 
 
+warm_up_voice()
 app.run(host='0.0.0.0', port=7860, debug=False)
