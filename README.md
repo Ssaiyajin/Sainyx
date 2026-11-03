@@ -8,50 +8,54 @@ app_file: app.py
 pinned: false
 ---
 
-# Sainyx 🔥
+# Sainyx
 
-**Sainyx V2.0**
+Sainyx is an experimental, open-source generative AI application built with Flask and PyTorch. The repository includes text, image, video, and voice-demo generation paths; availability depends on the corresponding checkpoint and runtime dependencies.
 
-An open-source AI platform in development, built with Flask by ssaiyajin.
-Language • Data Analysis • Image • Video — all in one, all free.
+[![CI](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml)
+[![Security](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml)
 
-## Live Demo
-👉 [Try Sainyx on Hugging Face](https://huggingface.co/spaces/ssaiyajin/Sainyx)
+**Release status:** v1 released September 2026, ongoing model improvements.
 
-## Vision
-Sainyx is not just a chatbot. It's a full AI platform:
-- 🧠 LLM built from scratch (PyTorch)
-- 📊 Data science gateway (Pandas, Matplotlib, PDF reports)
-- 🎨 Image generation (Stable Diffusion) — coming soon
-- 🎬 Video generation (ModelScope) — coming soon
-- 🌐 REST API for developers
+## Current state and limitations
 
-## Current Status
-- ✅ GPT transformer built from scratch (5M parameters)
-- ✅ Trained on custom anime/gaming/DBZ dataset (1.5M characters)
-- ✅ Jarvis HUD + MUI aura animation UI
-- ✅ Data analysis module with 5 chart types
-- ✅ PDF report export
-- ✅ Deployed on Hugging Face
-- 🔲 Image generation module
-- 🔲 Video generation module
-- ✅ REST API (`/api/v1/status` and `/api/v1/generate`)
+- The Flask interface and versioned REST API are implemented. Text generation is available when its checkpoint is reachable; image and video generation require their respective checkpoints.
+- The image generator can use tag-conditioned prompts when a compatible checkpoint is loaded. It generates at low resolution, and output quality is experimental and may be inconsistent; upscaling does not recover detail absent from the source image.
+- Text answers can be incoherent, factually incorrect, or incomplete. This is an experimental model, not a reliable source of information.
+- Video generation is experimental and may be unavailable until a compatible checkpoint is present. The video model is not generally prompt-conditioned; synthetic training clips use pan-and-zoom transformations of still images.
+- The voice path may use a speech model when installed and configured; otherwise it returns a synthetic tone. It must not be assumed to provide speech synthesis.
+- Training-data provenance, third-party dataset rights, checkpoint licenses, and the exact parameter counts of published weights have not been independently verified. Do not assume the repository's MIT license grants rights to model weights or generated output.
+- API keys are shared secrets; per-user identity, persistent jobs, and distributed rate limiting are not implemented. See the [API guide](docs/API.md).
 
-## Stack
+## Try it
 
-| Area | Technologies |
-|---|---|
-| Web application and API | Python, Flask |
-| Model runtime | PyTorch, torchvision |
-| Data analysis and modeling | Pandas, NumPy, scikit-learn, Matplotlib |
-| PDF reports | ReportLab |
-| Browser interface | HTML, CSS, JavaScript, Jinja templates |
-| Model checkpoints | Hugging Face Hub |
-| Deployment | Docker, Hugging Face Spaces |
+- [Hugging Face demo](https://huggingface.co/spaces/ssaiyajin/Sainyx)
+- API base path: `/api/v1`; the machine-readable contract is served at `/api/v1/openapi.yaml`.
+- The repository does not yet include a verified screenshot or recorded demo. Do not treat generated example assets as quality guarantees.
 
-## Run Locally
+## API
 
-Use Python 3.11 or another version supported by PyTorch. Install PyTorch separately from `requirements.txt` so you can choose the build for your operating system and hardware.
+The API currently has typed `POST /chat`, `POST /image`, and `POST /video` routes, plus the generic `POST /generate` route. `GET /status` and `GET /openapi.yaml` are public; generation requires `X-API-Key`.
+
+```bash
+curl -X POST https://YOUR_HOST/api/v1/chat \
+  -H "X-API-Key: $SAINYX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Introduce Sainyx in one sentence.","max_tokens":40}'
+```
+
+```bash
+curl -X POST https://YOUR_HOST/api/v1/image \
+  -H "X-API-Key: $SAINYX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"gogeta blue","num_images":1,"seed":42}'
+```
+
+Flask does not generate an interactive API documentation page by itself. Sainyx serves an OpenAPI 3.1 YAML contract; examples, authentication setup, limits, and error responses are documented in the [API guide](docs/API.md).
+
+## Run locally
+
+Use Python 3.11 and install PyTorch/torchvision for your platform before the other requirements:
 
 ```powershell
 git clone https://github.com/Ssaiyajin/Sainyx.git
@@ -59,37 +63,36 @@ cd Sainyx
 py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install torch torchvision
+python -m pip install -r requirements-torch.txt --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -r requirements.txt
 python app.py
 ```
 
-The app listens on `http://localhost:7860`. Its text checkpoint is required; image and video features depend on their respective checkpoints. Checkpoints are loaded from Hugging Face when the app starts. Set `HF_TOKEN` if access to a model repository requires authentication.
+The checked-in PyTorch pair is pinned. The command above selects CPU wheels; for CUDA or other platforms, use the matching official PyTorch wheel index while keeping the pinned pair.
 
-## REST API
+The app listens on `http://localhost:7860`. Set `HF_TOKEN` only if a model repository requires authentication. The server-side API key is configured through `SAINYX_API_KEY`.
 
-Check the public API status and available model capabilities:
+## Architecture and model documentation
 
-```bash
-curl http://localhost:7860/api/v1/status
-```
+- [Architecture diagram and checkpoint flow](docs/ARCHITECTURE.md)
+- [Text model card](docs/model-cards/text.md)
+- [Image model card](docs/model-cards/image.md)
+- [Video model card](docs/model-cards/video.md)
+- [Combined model card](MODEL_CARD.md)
 
-The Space owner must set `SAINYX_API_KEY` in the server environment. Clients send that key in the `X-API-Key` header; status and OpenAPI routes are public. For examples, request formats, asynchronous jobs, and limits, see the [API guide](docs/API.md). The live OpenAPI document is served at `/api/v1/openapi.yaml`.
+The cards document the evidence available in this repository. They do not claim that upstream training data or model weights have licenses that have not been verified. Copy the relevant card into the corresponding Hugging Face model repository after confirming its metadata and license.
 
-Example text-generation request:
+## Development
 
-```bash
-curl -X POST http://localhost:7860/api/v1/generate \
-  -H "X-API-Key: $SAINYX_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'
-```
+- [Contributing guide](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+- [CI workflow](.github/workflows/ci.yml)
+- [Security workflow](.github/workflows/security.yml)
 
-Generation requests are limited to 64 KiB and 60 per minute per client IP. The asynchronous job queue and rate limits are held in process memory; use a single application worker unless shared storage and rate limiting are configured externally.
+Pull requests run CPU-capable unit tests, dependency auditing, secret scanning, and filesystem scanning. Deployments to Dev run a staging Space smoke test. Production deployment requires approval through the protected GitHub `production` Environment; configure required reviewers in repository settings for that gate to be effective.
 
-## Deployment
+Configure GitHub Actions secrets `HF_TOKEN`, `SAINYX_STAGING_API_KEY`, and `SAINYX_API_KEY`, and set the matching API keys in the corresponding Hugging Face Spaces. The production Environment must have required reviewers configured; merely naming an Environment does not enable manual approval.
 
-The repository includes a Dockerfile configured for Hugging Face Spaces on port `7860`. The deployment workflows run API smoke checks; configure the required `HF_TOKEN` and `SAINYX_API_KEY` GitHub Actions secrets, and set `SAINYX_API_KEY` in the Space secrets as well. See [docs/API.md](docs/API.md) for API key setup and [api/openapi.yaml](api/openapi.yaml) for the API contract.
+## License
 
-## Author
-Built by **Nihar Sawant** (known online as **ssaiyajin**). — learning in public, scaling in silence. ⚡
+Source code is licensed under the MIT License; see [LICENSE](LICENSE). Model weights and third-party training data may have separate terms and are not licensed by that statement.

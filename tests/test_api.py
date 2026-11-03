@@ -9,6 +9,7 @@ import api.api as api_module
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv(api_module.API_KEY_ENV_VAR, "test-secret")
+    api_module._rate_limit_buckets.clear()
     app = Flask(__name__)
     app.register_blueprint(api_module.api)
     app.testing = True
@@ -159,10 +160,104 @@ def test_openapi_document_is_served(client):
     assert b"/jobs/{job_id}/result" in response.data
 
 
+def test_openapi_contract_documents_typed_endpoints(client):
+    yaml = pytest.importorskip("yaml")
+    response = client.get("/api/v1/openapi.yaml")
+    contract = yaml.safe_load(response.data)
+
+    assert {"/chat", "/image", "/video"} <= set(contract["paths"])
+    assert contract["components"]["schemas"]["ChatRequest"]["required"] == ["message"]
+
+
 def test_api_version_root_returns_discovery_links(client):
     response = client.get("/api/v1")
     assert response.status_code == 200
     assert response.json["version"] == "v1"
     assert response.json["status_url"] == "/api/v1/status"
     assert response.json["generate_url"] == "/api/v1/generate"
+    assert response.json["chat_url"] == "/api/v1/chat"
+    assert response.json["image_url"] == "/api/v1/image"
+    assert response.json["video_url"] == "/api/v1/video"
     assert response.json["openapi_url"] == "/api/v1/openapi.yaml"
+
+
+def test_chat_route_reuses_text_generator(client, monkeypatch):
+    seen = {}
+
+    def generate(body):
+        seen.update(body)
+        return {"text": "generated"}, 200
+
+    monkeypatch.setitem(
+        api_module.GENERATORS,
+        "text",
+        api_module.GenerationType(generate, lambda: True),
+    )
+    response = client.post(
+        "/api/v1/chat",
+        headers={"X-API-Key": "test-secret"},
+        json={"message": "hello", "max_tokens": 10},
+    )
+    assert response.status_code == 200
+    assert response.json["result"]["text"] == "generated"
+    assert seen["prompt"] == "hello"
+    assert seen["type"] == "text"
+    assert "message" not in seen
+
+
+@pytest.mark.parametrize(
+    ("path", "gen_type", "body"),
+    [
+        ("/api/v1/image", "image", {"prompt": "blue hair"}),
+        ("/api/v1/video", "video", {"prompt": "blue hair", "seconds": 2}),
+    ],
+)
+def test_media_routes_reuse_registered_generators(client, monkeypatch, path, gen_type, body):
+    seen = {}
+
+    def generate(request_body):
+        seen.update(request_body)
+        return {"generated": True}, 200
+
+    monkeypatch.setitem(
+        api_module.GENERATORS,
+        gen_type,
+        api_module.GenerationType(generate, lambda: True),
+    )
+    response = client.post(path, headers={"X-API-Key": "test-secret"}, json=body)
+    assert response.status_code == 200
+    assert response.json["type"] == gen_type
+    assert seen["type"] == gen_type
+
+
+@pytest.mark.parametrize(
+    ("body", "error_code"),
+    [
+        ({"prompt": "clip", "seconds": "long"}, "invalid_seconds"),
+        ({"prompt": "clip", "resolution": 100}, "invalid_resolution"),
+        ({"prompt": "clip", "format": "avi"}, "invalid_format"),
+    ],
+)
+def test_video_route_rejects_invalid_generation_options(client, body, error_code):
+    response = client.post(
+        "/api/v1/video",
+        headers={"X-API-Key": "test-secret"},
+        json=body,
+    )
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == error_code
+
+
+def test_rate_limit_applies_to_typed_endpoints(client, monkeypatch):
+    monkeypatch.setattr(api_module, "MAX_GENERATION_REQUESTS_PER_MINUTE", 1)
+    api_module._rate_limit_buckets.clear()
+    monkeypatch.setitem(
+        api_module.GENERATORS,
+        "text",
+        api_module.GenerationType(lambda body: ({"text": "ok"}, 200), lambda: True),
+    )
+    headers = {"X-API-Key": "test-secret"}
+    first = client.post("/api/v1/chat", headers=headers, json={"message": "hello"})
+    second = client.post("/api/v1/chat", headers=headers, json={"message": "again"})
+    assert first.status_code == 200
+    assert second.status_code == 429

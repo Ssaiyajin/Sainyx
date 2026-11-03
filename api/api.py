@@ -7,13 +7,14 @@ the same API version and response conventions.
 
 import base64
 import io
+import math
 import os
 import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
-from typing import Callable, Dict, NamedTuple, Tuple
+from typing import Callable, Dict, NamedTuple, Optional, Tuple
 
 from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
@@ -33,6 +34,12 @@ MAX_REQUEST_BYTES = 64 * 1024
 MAX_GENERATION_REQUESTS_PER_MINUTE = 60
 MAX_PENDING_JOBS = 100
 JOB_TTL_SECONDS = 60 * 60
+GENERATION_ENDPOINTS = {
+    "api.generate",
+    "api.chat",
+    "api.image",
+    "api.video",
+}
 
 _job_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sainyx-api")
 _jobs = {}
@@ -103,7 +110,7 @@ def require_api_key(view_func: Callable) -> Callable:
         if not provided_key or provided_key != expected_key:
             return _error("unauthorized", "Missing or invalid X-API-Key header", 401)
 
-        if request.endpoint == "api.generate":
+        if request.endpoint in GENERATION_ENDPOINTS:
             limited = _check_generation_rate_limit()
             if limited:
                 return limited
@@ -331,6 +338,30 @@ def _validated_request(body: dict):
         if response_format == "binary" and num_images != 1:
             return None, _error("binary_batch_not_supported", "Binary output requires num_images=1", 400)
 
+    if gen_type == "video":
+        seconds = body.get("seconds", 4)
+        if (
+            isinstance(seconds, bool)
+            or not isinstance(seconds, (int, float))
+            or not math.isfinite(seconds)
+            or not 1 <= seconds <= 30
+        ):
+            return None, _error("invalid_seconds", "seconds must be a number from 1 to 30", 400)
+        resolution = body.get("resolution", 1080)
+        if (
+            isinstance(resolution, bool)
+            or not isinstance(resolution, int)
+            or not 256 <= resolution <= 2160
+        ):
+            return None, _error("invalid_resolution", "resolution must be an integer from 256 to 2160", 400)
+        video_format = body.get("format", "gif")
+        if video_format not in ("gif", "mp4"):
+            return None, _error("invalid_format", "format must be 'gif' or 'mp4'", 400)
+        if "prompt" in body and (
+            not isinstance(body["prompt"], str) or len(body["prompt"].strip()) > 2000
+        ):
+            return None, _error("invalid_prompt", "prompt must be a string of at most 2000 characters", 400)
+
     if "seed" in body:
         seed = body["seed"]
         if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= 2**63 - 1:
@@ -457,15 +488,16 @@ def api_index():
         "version": "v1",
         "status_url": url_for("api.status"),
         "generate_url": url_for("api.generate"),
+        "chat_url": url_for("api.chat"),
+        "image_url": url_for("api.image"),
+        "video_url": url_for("api.video"),
         "openapi_url": url_for("api.openapi_document"),
         "job_status_url_template": url_for("api.job_status", job_id="{job_id}"),
         "job_result_url_template": url_for("api.job_result", job_id="{job_id}"),
     })
 
 
-@api.route("/generate", methods=["POST"])
-@require_api_key
-def generate():
+def _generate_request(gen_type: Optional[str] = None, prompt_alias: Optional[str] = None):
     if request.content_length is not None and request.content_length > MAX_REQUEST_BYTES:
         return _error("request_too_large", f"Request body must not exceed {MAX_REQUEST_BYTES} bytes", 413)
     if not request.is_json:
@@ -473,6 +505,18 @@ def generate():
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _error("invalid_json", "Request body must be a JSON object", 400)
+
+    if gen_type is not None:
+        body = dict(body)
+        if "type" in body and body["type"] != gen_type:
+            return _error("route_type_mismatch", f"This endpoint only accepts type '{gen_type}'", 400)
+        if prompt_alias is not None:
+            if prompt_alias not in body:
+                return _error("missing_prompt", f"{prompt_alias} is required", 400)
+            if "prompt" in body:
+                return _error("duplicate_prompt", f"Send either '{prompt_alias}' or 'prompt', not both", 400)
+            body["prompt"] = body.pop(prompt_alias)
+        body["type"] = gen_type
 
     validated, error_response = _validated_request(body)
     if error_response:
@@ -497,6 +541,33 @@ def generate():
     if status_code != 200:
         return _error("generation_failed", payload.get("error", "Generation failed."), status_code)
     return _deliver_result(gen_type, payload, validated["response_format"])
+
+
+@api.route("/generate", methods=["POST"])
+@require_api_key
+def generate():
+    return _generate_request()
+
+
+@api.route("/chat", methods=["POST"])
+@require_api_key
+def chat():
+    """Generate a text response using the existing Sainyx text model."""
+    return _generate_request("text", prompt_alias="message")
+
+
+@api.route("/image", methods=["POST"])
+@require_api_key
+def image():
+    """Generate an image using the existing Sainyx image generator."""
+    return _generate_request("image")
+
+
+@api.route("/video", methods=["POST"])
+@require_api_key
+def video():
+    """Generate a video clip using the existing Sainyx video generator."""
+    return _generate_request("video")
 
 
 @api.route("/jobs/<job_id>", methods=["GET"])

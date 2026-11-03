@@ -41,13 +41,52 @@ The live OpenAPI 3.1 contract is available at `/api/v1/openapi.yaml`.
 
 Generation requests are limited to 60 per minute per client IP and 64 KiB per JSON body. A `429` response includes `Retry-After`. The current rate counter and async job queue are in process memory; run a single application worker or enforce shared rate limits and durable jobs at the deployment gateway before scaling to multiple workers.
 
+## Typed endpoints
+
+The generic `/generate` endpoint remains available. These aliases accept a focused request shape and share its authentication, validation, rate limit, async queue, and response envelope:
+
+### Chat
+
+`POST /chat` accepts `message` in place of `prompt`:
+
+```bash
+curl -X POST https://YOUR_HOST/api/v1/chat \
+  -H "X-API-Key: $SAINYX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Introduce Sainyx in one sentence.","max_tokens":40,"seed":42}'
+```
+
+### Image
+
+`POST /image` accepts `prompt`, `num_images` (1-4), `seed`, `response_format`, and `async`. Prompt behavior depends on the loaded checkpoint. A tag-conditioned checkpoint resolves words against its tag vocabulary and can reject prompts that do not match; the generation code also supports older unconditional checkpoints.
+
+```bash
+curl -X POST https://YOUR_HOST/api/v1/image \
+  -H "X-API-Key: $SAINYX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"gogeta blue","num_images":1,"seed":42}'
+```
+
+### Video
+
+`POST /video` accepts optional `prompt` metadata, `seconds` (1-30), `resolution` (256-2160), `format` (`gif` or `mp4`), `seed`, `response_format`, and `async`. The model's native output is low-resolution; export upscaling does not add model detail. Prompt conditioning depends on the loaded model and may only be used to create an initial frame for a compatible image-to-video model.
+
+```bash
+curl -X POST https://YOUR_HOST/api/v1/video \
+  -H "X-API-Key: $SAINYX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"seconds":2,"format":"gif","seed":42}'
+```
+
+Flask does not provide an interactive OpenAPI UI by default. The API contract is available at `/api/v1/openapi.yaml`; this guide provides the request examples and operational details.
+
 ## Check Capabilities
 
 ```bash
 curl https://YOUR_HOST/api/v1/status
 ```
 
-The response reports availability, supported options, and limits. It currently advertises that image prompts are not conditioned into images and voice output is not speech synthesis.
+The response reports availability, supported options, and limits. Prompt conditioning and checkpoint availability vary by loaded model. Voice may use a speech model when available, otherwise it falls back to a synthetic tone.
 
 ## Generate
 
@@ -62,7 +101,7 @@ curl -X POST https://YOUR_HOST/api/v1/generate \
   -d '{"type":"text","prompt":"Who is Goku?","max_tokens":80,"seed":1234}'
 ```
 
-Image generation accepts `prompt`, `num_images` (1-4), and `seed`. The current diffusion checkpoint is unconditional, so `prompt` is returned as metadata and does not influence pixels. JSON output contains `result.image_base64` for one image or `result.images_base64` for a batch.
+Image generation accepts `prompt`, `num_images` (1-4), and `seed`. Tag-conditioned checkpoints use the prompt to select learned tags; older unconditional checkpoints may treat it only as metadata. JSON output contains `result.image_base64` for one image or `result.images_base64` for a batch.
 
 ```bash
 curl -X POST https://YOUR_HOST/api/v1/generate \
@@ -81,9 +120,9 @@ curl -X POST https://YOUR_HOST/api/v1/generate \
   --output sainyx-image.png
 ```
 
-Video returns a looping GIF (or MP4 with `"format": "mp4"`) at 64x64, 16 fps, length set by `seconds` (default 4, max 30 over the API), base64-encoded as `video_base64` in JSON mode or as `image/gif` in binary mode. It supports an optional `seed` and JSON or binary response format. The endpoint returns `503` while its checkpoint is unavailable.
+Video returns a looping GIF (or MP4 with `"format": "mp4"`), base64-encoded as `video_base64` in JSON mode or as `image/gif` / `video/mp4` in binary mode. The model generates low-resolution frames that are enlarged for export. The API accepts `seconds` from 1 to 30, `resolution` from 256 to 2160, an optional `seed`, and JSON or binary response format. The endpoint returns `503` while its checkpoint is unavailable.
 
-Voice accepts `text` (or the legacy `prompt` alias) and `voice` (`neutral` or `energetic`). Its current output is a small WAV tone demo with the text included as metadata; it does not yet speak the supplied text.
+Voice accepts `text` (or the legacy `prompt` alias) and `voice` (`neutral` or `energetic`). Depending on the installed/configured backend, it may synthesize speech or return a WAV tone demo with the text as metadata; do not assume the fallback speaks the supplied text.
 
 ## Async Jobs
 

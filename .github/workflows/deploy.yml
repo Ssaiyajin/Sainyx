@@ -1,4 +1,4 @@
-name: Deploy to Hugging Face
+name: Promote to Production
 
 on:
   push:
@@ -6,29 +6,29 @@ on:
       - main
 
 jobs:
-  api-smoke:
-    uses: ./.github/workflows/api-smoke.yml
+  ci:
+    uses: ./.github/workflows/ci.yml
     secrets: inherit
 
-  deploy:
-    needs: api-smoke
+  deploy-staging:
+    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           lfs: true
 
-      - name: Push to Hugging Face
+      - name: Push main commit to staging Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git config user.email "deploy@sainyx.ai"
           git config user.name "Sainyx Deploy"
-          git remote add hf https://ssaiyajin:$HF_TOKEN@huggingface.co/spaces/ssaiyajin/Sainyx
-          git push hf main:main --force
+          git remote add staging "https://user:${HF_TOKEN}@huggingface.co/spaces/ssaiyajin/Sainyx-staging"
+          git push staging HEAD:main --force
 
       - name: Set up Python for public API verification
         uses: actions/setup-python@v5
@@ -38,7 +38,44 @@ jobs:
       - name: Install public API check dependency
         run: python -m pip install requests
 
-      - name: Verify deployed public Sainyx API
+      - name: Verify staged main commit
+        env:
+          SAINYX_PUBLIC_API_URL: https://ssaiyajin-sainyx-staging.hf.space/api/v1
+          SAINYX_API_KEY: ${{ secrets.SAINYX_STAGING_API_KEY }}
+        run: python scripts/public_api_smoke.py
+
+  promote-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+    steps:
+      - name: Checkout approved commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: true
+
+      - name: Push approved commit to production Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config user.email "deploy@sainyx.ai"
+          git config user.name "Sainyx Deploy"
+          git remote add production "https://user:${HF_TOKEN}@huggingface.co/spaces/ssaiyajin/Sainyx"
+          git push production HEAD:main --force
+
+      - name: Set up Python for public API verification
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install public API check dependency
+        run: python -m pip install requests
+
+      - name: Verify the deployed production API
         env:
           SAINYX_PUBLIC_API_URL: https://ssaiyajin-sainyx.hf.space/api/v1
           SAINYX_API_KEY: ${{ secrets.SAINYX_API_KEY }}
