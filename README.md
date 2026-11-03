@@ -13,7 +13,6 @@ pinned: false
 Sainyx is an experimental, open-source generative AI application built with Flask and PyTorch. The repository includes text, image, video, and voice-demo generation paths; availability depends on the corresponding checkpoint and runtime dependencies.
 
 [![Staging deployment](https://github.com/Ssaiyajin/Sainyx/actions/workflows/staging.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/staging.yml)
-[![Security](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml)
 
 **Release status:** v1 released September 2026, ongoing model improvements.
 
@@ -111,9 +110,10 @@ The cards document the evidence available in this repository. They do not claim 
 - [Documentation index](docs/README.md)
 - [Development and test guide](docs/DEVELOPMENT.md)
 - [Pre-deployment validation workflow](.github/workflows/ci.yml)
-- [Security workflow](.github/workflows/security.yml)
+- [Staging deployment workflow](.github/workflows/staging.yml)
+- [Production deployment workflow](.github/workflows/deploy.yml)
 
-Pull requests run CPU-capable unit tests, dependency auditing, secret scanning, and filesystem scanning. Deployments to Dev run a staging Space smoke test. Production deployment requires approval through the protected GitHub `production` Environment; configure required reviewers in repository settings for that gate to be effective.
+Pull requests run CPU-capable unit tests, dependency auditing, secret scanning, and filesystem scanning. Deployments to Dev run the same checks before the staging Space smoke test. Production deployment requires approval through the protected GitHub `production` Environment; configure required reviewers in repository settings for that gate to be effective.
 
 Configure GitHub Actions secrets `HF_TOKEN`, `SAINYX_STAGING_API_KEY`, and `SAINYX_API_KEY`, and set the matching API keys in the corresponding Hugging Face Spaces. The production Environment must have required reviewers configured; merely naming an Environment does not enable manual approval.
 

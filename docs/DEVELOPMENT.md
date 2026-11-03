@@ -41,11 +41,10 @@ Run the same CPU-capable test suite used by CI:
 python -m pytest -q tests
 ```
 
-CI also invokes the security workflow, which audits Python dependencies,
-scans repository history for secrets, and runs a Trivy filesystem scan. The
-manual API smoke workflow loads the real text model and requires any needed
-Hugging Face access; it is distinct from the unit tests and is not required
-for every CPU-only test run.
+CI also audits Python dependencies, scans repository history for secrets,
+and runs a Trivy filesystem scan. The manual API smoke workflow loads the
+real text model and requires any needed Hugging Face access; it is distinct
+from the unit tests and is not required for every CPU-only test run.
 
 ## Contribution checklist
 

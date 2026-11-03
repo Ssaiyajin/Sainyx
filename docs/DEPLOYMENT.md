@@ -11,8 +11,8 @@ checkpoint is present.
 
 ## Release paths
 
-On a push to `Dev`, `.github/workflows/staging.yml` runs reusable CPU tests
-and security checks, pushes the commit to the staging Space, then calls the
+On a push to `Dev`, `.github/workflows/staging.yml` runs CPU tests and
+security checks, pushes the commit to the staging Space, then calls the
 public API smoke script.
 
 On a push to `main`, `.github/workflows/deploy.yml` runs the same CI,

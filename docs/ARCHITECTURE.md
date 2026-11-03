@@ -75,15 +75,15 @@ availability.
 
 ## Current release flow
 
-The `Dev` workflow runs reusable CPU tests and security scans, deploys to the
+The `Dev` workflow runs CPU tests and security scans, deploys to the
 staging Space, and checks its public API. The `main` workflow runs the checks,
 deploys the commit to staging, and waits for the staging API smoke test before
 requesting approval through the protected GitHub `production` Environment.
 After approval it promotes the commit to production and runs a production API
 smoke test. Required reviewers must be configured on that Environment for
-the approval gate to be effective. CI is reusable by these push-triggered
-deployment workflows and runs independently for pull requests, avoiding a
-duplicate workflow run for each push.
+the approval gate to be effective. Each workflow defines its checks as direct
+jobs so the Actions graph shows concise job names; shared steps live in
+composite actions. Pull requests run the separate validation workflow.
 
 ```mermaid
 flowchart LR
@@ -99,10 +99,10 @@ flowchart LR
     Prod --> SmokeProd["Production API smoke test"]
 ```
 
-The workflows are [`staging.yml`](../.github/workflows/staging.yml) and
-[`deploy.yml`](../.github/workflows/deploy.yml); reusable checks are defined
-in [`ci.yml`](../.github/workflows/ci.yml) and
-[`security.yml`](../.github/workflows/security.yml).
+The workflows are [`staging.yml`](../.github/workflows/staging.yml),
+[`deploy.yml`](../.github/workflows/deploy.yml), and the pull-request
+validation workflow [`ci.yml`](../.github/workflows/ci.yml). Shared job steps
+live in [composite actions](../.github/actions).
 
 Sainyx does not currently configure Prometheus/Grafana monitoring or
 Kubernetes manifests and deployment validation.

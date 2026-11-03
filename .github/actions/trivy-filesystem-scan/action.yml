@@ -1,0 +1,15 @@
+name: Trivy filesystem scan
+description: Scan the repository for vulnerable dependencies, misconfigurations, and secrets
+runs:
+  using: composite
+  steps:
+    - name: Scan filesystem and configuration
+      shell: bash
+      run: |
+        docker run --rm \
+          --volume "$GITHUB_WORKSPACE:/work:ro" \
+          aquasec/trivy:0.76.1 \
+          fs --scanners vuln,misconfig,secret \
+          --severity HIGH,CRITICAL \
+          --exit-code 1 \
+          /work
