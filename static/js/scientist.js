@@ -12,12 +12,12 @@ async function runScientist(file) {
     addBotRaw(`
         <div class="msg-label">Sainyx</div>
         <div class="msg-bubble">Which column should I predict from <strong>${file.name}</strong>?</div>
-        <div class="action-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+        <div class="action-row train-options">
             <select class="col-select" id="target-select">
                 <option value="">-- select target column --</option>
                 ${opts}
             </select>
-            <div style="display:flex;gap:8px;">
+            <div class="train-option-buttons">
                 <button class="act-btn primary" onclick="startTraining()">⚡ Generate & Train</button>
                 <button class="act-btn" onclick="this.closest('.msg-wrap').remove()">✕ Cancel</button>
             </div>

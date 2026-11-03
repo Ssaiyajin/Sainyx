@@ -8,6 +8,13 @@ let messageQueue = Promise.resolve();
 
 const chatBox = document.getElementById('chat-box');
 const input   = document.getElementById('user-input');
+const sendButton = document.getElementById('send-btn');
+const responseStatus = document.getElementById('response-status');
+
+function setResponsePending(pending) {
+    sendButton.disabled = pending;
+    responseStatus.hidden = !pending;
+}
 
 // ── CAPABILITY BAR ────────────────────────────────
 // manual=true (the default) is what every onclick="setMode('x')" in chat.html
@@ -291,11 +298,14 @@ input.addEventListener('keydown', (e) => { if (e.key==='Enter' && !e.shiftKey) {
 
 // ── SEND ──────────────────────────────────────────
 function sendMessage() {
+    if (sendButton.disabled || (!input.value.trim() && !attachedFile)) return messageQueue;
+
+    setResponsePending(true);
     messageQueue = messageQueue.then(processMessage).catch(error => {
         stopOverlay();
         removeTyping();
         addBotMsg('❌ ' + (error.message || 'Request failed'));
-    });
+    }).finally(() => setResponsePending(false));
     return messageQueue;
 }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sainyx</title>
-    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/css/app.css?v=2">
 </head>
 <body>
 
@@ -140,19 +140,22 @@ Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate
             <button id="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach file">📎</button>
             <input type="file" id="file-input" accept=".csv" onchange="handleAttach(this.files[0])">
             <textarea id="user-input" placeholder="Ask anything..." rows="1"></textarea>
-            <button id="send-btn" onclick="sendMessage()">
+            <button id="send-btn" onclick="sendMessage()" aria-describedby="response-status">
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
             </button>
         </div>
+        <div id="response-status" role="status" aria-live="polite" hidden>
+            Still working on your response. It will be available shortly.
+        </div>
         <div id="input-hint">Use 📎 to attach CSV · Switch modes above · Image Gen: describe what to create</div>
     </div>
 </div>
 
 <script src="/static/js/overlay.js"></script>
-<script src="/static/js/chat.js?v=5"></script>
+<script src="/static/js/chat.js?v=6"></script>
 <script src="/static/js/data.js"></script>
 <script src="/static/js/scientist.js"></script>
 <script src="/static/js/image.js?v=2"></script>
