@@ -115,7 +115,7 @@ The cards document the evidence available in this repository. They do not claim 
 
 Pull requests run CPU-capable unit tests, dependency auditing, secret scanning, and filesystem scanning. Deployments to Dev run the same checks before the staging Space smoke test. Production deployment requires approval through the protected GitHub `production` Environment; configure required reviewers in repository settings for that gate to be effective.
 
-Configure GitHub Actions secrets `HF_TOKEN`, `SAINYX_STAGING_API_KEY`, and `SAINYX_API_KEY`, and set the matching API keys in the corresponding Hugging Face Spaces. The production Environment must have required reviewers configured; merely naming an Environment does not enable manual approval.
+Configure the GitHub Actions secret `HF_TOKEN` for deployment and private staging readiness checks. Configure `SAINYX_API_KEY` separately in each Hugging Face Space for protected generation requests. The production Environment must have required reviewers configured; merely naming an Environment does not enable manual approval.
 
 ## License
 

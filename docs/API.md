@@ -31,7 +31,13 @@ print(response.json()["result"]["text"])
 
 ## API Key Setup (Owner Only)
 
-The Sainyx Space owner creates a random key with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and saves it as `SAINYX_API_KEY` in the Hugging Face Space settings. The owner shares that API key with authorized clients; clients do not create Space secrets and do not need the Hugging Face account token. For the post-deployment check, the owner also saves the same key as a GitHub Actions secret named `SAINYX_API_KEY`.
+The Sainyx Space owner creates a random key with
+`python -c "import secrets; print(secrets.token_urlsafe(32))"` and saves it as
+`SAINYX_API_KEY` in the Hugging Face Space settings. The owner shares that API
+key with authorized clients; clients do not create Space secrets and do not
+need the Hugging Face account token. Deployment readiness checks use the
+Hugging Face token when needed and do not call generation endpoints, so the
+app API key does not need to be copied into GitHub Actions secrets.
 
 Clients should store the key in a server-side environment variable, not commit it or put it in public browser code. The current API uses one shared key for all clients.
 

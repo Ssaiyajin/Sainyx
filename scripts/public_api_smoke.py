@@ -1,4 +1,4 @@
-"""Verify the deployed public Sainyx API after a Hugging Face deployment."""
+"""Verify Sainyx API readiness after deployment without running model inference."""
 
 import os
 import time
@@ -41,46 +41,13 @@ def wait_for_public_api(base_url: str, headers: dict[str, str]) -> None:
 
 def main() -> None:
     base_url = os.environ.get("SAINYX_PUBLIC_API_URL", DEFAULT_API_BASE_URL).rstrip("/")
-    api_key = os.environ.get("SAINYX_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError(
-            "SAINYX_API_KEY is required for the live API check; configure the matching "
-            "GitHub Actions secret for the target Space"
-        )
-
-    headers = {"X-API-Key": api_key}
+    headers: dict[str, str] = {}
     hf_token = os.environ.get("HF_TOKEN", "").strip()
     if hf_token:
-        headers["Authorization"] = f"Bearer {hf_token}"
+        headers["Authorization"] = "Bearer " + hf_token
 
     wait_for_public_api(base_url, headers)
-
-    prompt = "In one short sentence, introduce Sainyx."
-    response = requests.post(
-        f"{base_url}/generate",
-        headers=headers,
-        json={
-            "type": "text",
-            "prompt": prompt,
-            "max_tokens": 24,
-            "seed": 42,
-        },
-        timeout=(15, 300),
-    )
-    if response.status_code != 200:
-        raise RuntimeError(
-            f"Public generation endpoint returned HTTP {response.status_code}: "
-            f"{response.text[:1000]}"
-        )
-
-    payload = response.json()
-    reply = payload.get("result", {}).get("text", "").strip()
-    if payload.get("status") != "completed" or not reply:
-        raise RuntimeError(f"Public text generation returned no reply: {payload!r}")
-
-    print(f"Sample prompt: {prompt}")
-    print(f"Sainyx public API reply: {reply}")
-    print("Post-deployment public API smoke test passed.")
+    print("Post-deployment API readiness check passed; no model inference was requested.")
 
 
 if __name__ == "__main__":

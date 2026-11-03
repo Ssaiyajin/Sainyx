@@ -12,8 +12,9 @@ checkpoint is present.
 ## Release paths
 
 On a push to `Dev`, `.github/workflows/staging.yml` runs CPU tests and
-security checks, pushes the commit to the staging Space, then calls the
-public API smoke script.
+security checks, pushes the commit to the staging Space, then checks the
+API discovery endpoint. This readiness check makes no generation request and
+does not need the app API key. It uses `HF_TOKEN` to access the private Space.
 
 On a push to `main`, `.github/workflows/deploy.yml` runs the same CI,
 pushes the commit to staging and waits for the staging API smoke test, then
@@ -28,17 +29,17 @@ branch before changing the workflow.
 
 ## GitHub Actions secrets
 
-Configure the following secrets in repository settings, using the same API
-keys in the corresponding Space settings:
+Configure this secret in GitHub repository settings:
 
 | Secret | Used for |
 | --- | --- |
-| `HF_TOKEN` | Push app source and authenticate checks against the private staging Space; grant only required access |
-| `SAINYX_STAGING_API_KEY` | Authenticate the post-deploy staging smoke test |
-| `SAINYX_API_KEY` | Authenticate the post-deploy production smoke test |
+| `HF_TOKEN` | Push app source and authenticate readiness checks against the private staging Space; grant only required access |
 
-Never put these values in source, notebooks, workflow output, or client-side
-JavaScript. Treat the API keys as shared credentials.
+Never put this token in source, notebooks, workflow output, or client-side
+JavaScript. Treat API keys as shared credentials.
+
+`SAINYX_API_KEY` remains a Space runtime setting for protected generation
+requests; the deployment readiness checks do not need it.
 
 ## What this deployment does not provide
 
