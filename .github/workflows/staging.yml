@@ -6,12 +6,13 @@ on:
       - Dev
 
 jobs:
-  ci:
+  pre-deployment:
+    name: Pre-deployment validation
     uses: ./.github/workflows/ci.yml
     secrets: inherit
 
   deploy:
-    needs: ci
+    needs: pre-deployment
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

@@ -1,4 +1,4 @@
-name: CI
+name: Pre-deployment validation
 
 on:
   pull_request:

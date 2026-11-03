@@ -12,7 +12,7 @@ pinned: false
 
 Sainyx is an experimental, open-source generative AI application built with Flask and PyTorch. The repository includes text, image, video, and voice-demo generation paths; availability depends on the corresponding checkpoint and runtime dependencies.
 
-[![CI](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml)
+[![Pre-deployment validation](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml)
 [![Security](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml)
 
 **Release status:** v1 released September 2026, ongoing model improvements.
@@ -110,7 +110,7 @@ The cards document the evidence available in this repository. They do not claim 
 - [Changelog](CHANGELOG.md)
 - [Documentation index](docs/README.md)
 - [Development and test guide](docs/DEVELOPMENT.md)
-- [CI workflow](.github/workflows/ci.yml)
+- [Pre-deployment validation workflow](.github/workflows/ci.yml)
 - [Security workflow](.github/workflows/security.yml)
 
 Pull requests run CPU-capable unit tests, dependency auditing, secret scanning, and filesystem scanning. Deployments to Dev run a staging Space smoke test. Production deployment requires approval through the protected GitHub `production` Environment; configure required reviewers in repository settings for that gate to be effective.

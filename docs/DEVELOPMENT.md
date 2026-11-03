@@ -2,9 +2,10 @@
 
 ## Requirements
 
-Use Python 3.11, matching the CI workflow. Install the pinned PyTorch and
-torchvision pair for the local platform before installing the remaining
-requirements. The following Windows example uses CPU wheels:
+Use Python 3.11, matching the pre-deployment validation workflow. Install
+the pinned PyTorch and torchvision pair for the local platform before
+installing the remaining requirements. The following Windows example uses
+CPU wheels:
 
 ```powershell
 py -3.11 -m venv .venv
