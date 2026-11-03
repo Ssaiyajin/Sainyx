@@ -46,11 +46,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Scan filesystem and configuration
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,misconfig,secret
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          version: v0.76.1
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/work:ro" \
+            aquasec/trivy:0.76.1 \
+            fs --scanners vuln,misconfig,secret \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            /work
