@@ -11,13 +11,13 @@ STARTUP_TIMEOUT_SECONDS = 20 * 60
 STARTUP_RETRY_SECONDS = 20
 
 
-def wait_for_public_api(base_url: str) -> None:
+def wait_for_public_api(base_url: str, headers: dict[str, str]) -> None:
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
     root_url = base_url.rstrip("/")
 
     while time.monotonic() < deadline:
         try:
-            response = requests.get(root_url, timeout=15)
+            response = requests.get(root_url, headers=headers, timeout=15)
             if response.status_code == 200:
                 discovery = response.json()
                 if discovery.get("version") == "v1" and discovery.get("generate_url"):
@@ -43,14 +43,22 @@ def main() -> None:
     base_url = os.environ.get("SAINYX_PUBLIC_API_URL", DEFAULT_API_BASE_URL).rstrip("/")
     api_key = os.environ.get("SAINYX_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("SAINYX_API_KEY GitHub Actions secret is required for the live API check")
+        raise RuntimeError(
+            "SAINYX_API_KEY is required for the live API check; configure the matching "
+            "GitHub Actions secret for the target Space"
+        )
 
-    wait_for_public_api(base_url)
+    headers = {"X-API-Key": api_key}
+    hf_token = os.environ.get("HF_TOKEN", "").strip()
+    if hf_token:
+        headers["Authorization"] = f"Bearer {hf_token}"
+
+    wait_for_public_api(base_url, headers)
 
     prompt = "In one short sentence, introduce Sainyx."
     response = requests.post(
         f"{base_url}/generate",
-        headers={"X-API-Key": api_key},
+        headers=headers,
         json={
             "type": "text",
             "prompt": prompt,

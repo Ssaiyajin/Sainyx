@@ -43,4 +43,5 @@ jobs:
         env:
           SAINYX_PUBLIC_API_URL: https://ssaiyajin-sainyx-staging.hf.space/api/v1
           SAINYX_API_KEY: ${{ secrets.SAINYX_STAGING_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: python scripts/public_api_smoke.py

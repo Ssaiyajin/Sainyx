@@ -33,7 +33,7 @@ keys in the corresponding Space settings:
 
 | Secret | Used for |
 | --- | --- |
-| `HF_TOKEN` | Push the app source to the configured Spaces; grant only required access |
+| `HF_TOKEN` | Push app source and authenticate checks against the private staging Space; grant only required access |
 | `SAINYX_STAGING_API_KEY` | Authenticate the post-deploy staging smoke test |
 | `SAINYX_API_KEY` | Authenticate the post-deploy production smoke test |
 
