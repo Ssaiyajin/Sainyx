@@ -32,6 +32,55 @@ Sainyx is an experimental, open-source generative AI application built with Flas
 - API base path: `/api/v1`; the machine-readable contract is served at `/api/v1/openapi.yaml`.
 - The repository does not yet include a verified screenshot or recorded demo. Do not treat generated example assets as quality guarantees.
 
+## Architecture
+
+The Flask app serves the browser UI and versioned API. Its generation paths
+share a model cache and load configured checkpoints from Hugging Face model
+repositories when available. This diagram describes the code structure, not
+the current availability or quality of deployed models.
+
+```mermaid
+flowchart LR
+    Browser["Browser"] --> App["Flask app<br/>Hugging Face Space"]
+    Client["API client"] --> API["Versioned REST API<br/>/api/v1"]
+    API --> App
+    App --> Text["Text generation"]
+    App --> Image["Image generation"]
+    App --> Video["Video generation"]
+    App --> Voice["Voice demo path"]
+    Text --> Cache["ModelFactory<br/>shared checkpoint cache"]
+    Image --> Cache
+    Video --> Cache
+    Cache --> Hub["Hugging Face model repositories"]
+    Training["Local or external training"] -. "checkpoint upload" .-> Hub
+```
+
+### Pull request and release flow
+
+Pull requests run the same tests and security checks without deployment. A
+push to `Dev` deploys to the staging Space; a push to `main` stages the commit
+first and waits for the protected production approval before promotion.
+Post-deploy checks verify API readiness only and do not request model
+generation.
+
+```mermaid
+flowchart TD
+    PR["Pull request"] --> Checks["CPU unit tests<br/>Dependency audit<br/>Secret scan<br/>Trivy filesystem scan"]
+    Dev["Push to Dev"] --> Checks
+    Main["Push to main"] --> Checks
+    Checks -->|pull request| Done["Checks complete"]
+    Checks -->|Dev push| StageDev["Deploy to Sainyx-staging"]
+    StageDev --> ReadyDev["Staging API readiness check"]
+    Checks -->|main push| StageMain["Deploy commit to Sainyx-staging"]
+    StageMain --> ReadyMain["Staging API readiness check"]
+    ReadyMain --> Approval["Protected production approval"]
+    Approval --> Production["Deploy to Sainyx production Space"]
+    Production --> ReadyProd["Production API readiness check"]
+```
+
+See the [detailed architecture and checkpoint flow](docs/ARCHITECTURE.md) and
+[deployment guide](docs/DEPLOYMENT.md).
+
 ## Deployment and operations
 
 **Documentation status: complete for the current checked-in configuration.**
