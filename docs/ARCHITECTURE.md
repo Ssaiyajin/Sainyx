@@ -81,7 +81,9 @@ deploys the commit to staging, and waits for the staging API smoke test before
 requesting approval through the protected GitHub `production` Environment.
 After approval it promotes the commit to production and runs a production API
 smoke test. Required reviewers must be configured on that Environment for
-the approval gate to be effective.
+the approval gate to be effective. CI is reusable by these push-triggered
+deployment workflows and runs independently for pull requests, avoiding a
+duplicate workflow run for each push.
 
 ```mermaid
 flowchart LR

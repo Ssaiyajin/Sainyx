@@ -12,7 +12,7 @@ pinned: false
 
 Sainyx is an experimental, open-source generative AI application built with Flask and PyTorch. The repository includes text, image, video, and voice-demo generation paths; availability depends on the corresponding checkpoint and runtime dependencies.
 
-[![Pre-deployment validation](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/ci.yml)
+[![Staging deployment](https://github.com/Ssaiyajin/Sainyx/actions/workflows/staging.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/staging.yml)
 [![Security](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/security.yml)
 
 **Release status:** v1 released September 2026, ongoing model improvements.
