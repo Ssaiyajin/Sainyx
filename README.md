@@ -33,6 +33,25 @@ Sainyx is an experimental, open-source generative AI application built with Flas
 - API base path: `/api/v1`; the machine-readable contract is served at `/api/v1/openapi.yaml`.
 - The repository does not yet include a verified screenshot or recorded demo. Do not treat generated example assets as quality guarantees.
 
+## Deployment and operations
+
+**Documentation status: complete for the current checked-in configuration.**
+This does not assert that the Spaces or model checkpoints are currently
+available.
+
+The configured production runtime is the Hugging Face Space
+[`ssaiyajin/Sainyx`](https://huggingface.co/spaces/ssaiyajin/Sainyx); the
+staging Space is `ssaiyajin/Sainyx-staging`. CI deploys to staging, runs the
+public API smoke test, and promotes the approved commit to the production
+Space through the protected GitHub `production` Environment. A configured
+Space URL does not by itself verify current availability.
+
+This repository does not currently configure Prometheus/Grafana monitoring
+or Kubernetes manifests/deployment validation. Its CI runs CPU unit/API tests
+and its deployment workflow validates the staging and production APIs; it
+does not deploy to a Kubernetes cluster. Do not describe those capabilities
+as implemented for Sainyx.
+
 ## API
 
 The API currently has typed `POST /chat`, `POST /image`, and `POST /video` routes, plus the generic `POST /generate` route. `GET /status` and `GET /openapi.yaml` are public; generation requires `X-API-Key`.
@@ -75,6 +94,9 @@ The app listens on `http://localhost:7860`. Set `HF_TOKEN` only if a model repos
 ## Architecture and model documentation
 
 - [Architecture diagram and checkpoint flow](docs/ARCHITECTURE.md)
+- [Documentation index](docs/README.md)
+- [Development and test guide](docs/DEVELOPMENT.md)
+- [Space deployment and promotion guide](docs/DEPLOYMENT.md)
 - [Text model card](docs/model-cards/text.md)
 - [Image model card](docs/model-cards/image.md)
 - [Video model card](docs/model-cards/video.md)
@@ -86,6 +108,8 @@ The cards document the evidence available in this repository. They do not claim 
 
 - [Contributing guide](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
+- [Documentation index](docs/README.md)
+- [Development and test guide](docs/DEVELOPMENT.md)
 - [CI workflow](.github/workflows/ci.yml)
 - [Security workflow](.github/workflows/security.yml)
 

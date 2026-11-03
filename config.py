@@ -21,10 +21,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 # ── Shared repo IDs ──────────────────────────────────────────────────
-# sainyx-model = the "production" repo the live app actually loads from
-# sainyx-staging = a backup/pre-promotion copy of everything, so a
-# checkpoint always lands in both places the moment training finishes,
-# with no manual Kaggle download/upload step in between.
+# Checkpoint routing is model-specific below. These IDs identify the
+# configured Hub repositories; they do not guarantee a file is published.
 SAINYX_MODEL_REPO_ID = "ssaiyajin/sainyx-model"
 SAINYX_STAGING_REPO_ID = "ssaiyajin/sainyx-staging"
 
