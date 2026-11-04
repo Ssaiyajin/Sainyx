@@ -30,7 +30,18 @@ Sainyx is an experimental, open-source generative AI application built with Flas
 
 - [Hugging Face demo](https://huggingface.co/spaces/ssaiyajin/Sainyx)
 - API base path: `/api/v1`; the machine-readable contract is served at `/api/v1/openapi.yaml`.
-- The repository does not yet include a verified screenshot or recorded demo. Do not treat generated example assets as quality guarantees.
+
+### Live Space previews
+
+| Text generation | Voice status | Feature tour |
+|---|---|---|
+| ![Animated preview showing a prompt and one verbatim text response from the live Sainyx Space](docs/assets/sainyx-text-live-sample.gif) | ![Animated preview showing that voice generation is marked planned in the deployed Space](docs/assets/sainyx-voice-status.gif) | ![Animated tour of the Sainyx interface modes](docs/assets/sainyx-feature-tour.gif) |
+| One short response observed from the live Space. It is incoherent, illustrating the model's experimental quality. | The deployed UI marks voice generation as planned; this is not an audio demo. | Highlights interface sections only; model and feature availability depends on the running Space. |
+
+These compact GIFs are animated previews based on states observed in the
+[live Space](https://huggingface.co/spaces/ssaiyajin/Sainyx), not continuous
+screen recordings. The text shown is one actual response; do not treat it or
+other generated outputs as quality guarantees.
 
 ## Architecture
 
