@@ -28,4 +28,4 @@ The model operates at low native resolution. Image quality is experimental and c
 
 ## Weights and license
 
-Checkpoint redistribution terms and the exact model license are unverified. The repository's MIT source-code license does not apply to the weights or source artwork by implication.
+Checkpoint redistribution terms and the exact model license are unverified. No license for the repository source code is specified, and it should not be assumed to grant rights to the weights or source artwork.

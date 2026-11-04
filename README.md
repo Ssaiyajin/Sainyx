@@ -10,7 +10,7 @@ pinned: false
 
 # Sainyx
 
-Sainyx is an experimental, open-source generative AI application built with Flask and PyTorch. The repository includes text, image, video, and voice-demo generation paths; availability depends on the corresponding checkpoint and runtime dependencies.
+Sainyx is an experimental generative AI application built with Flask and PyTorch. The repository includes text, image, video, and voice-demo generation paths; availability depends on the corresponding checkpoint and runtime dependencies.
 
 [![Staging deployment](https://github.com/Ssaiyajin/Sainyx/actions/workflows/staging.yml/badge.svg?branch=Dev)](https://github.com/Ssaiyajin/Sainyx/actions/workflows/staging.yml)
 
@@ -23,7 +23,7 @@ Sainyx is an experimental, open-source generative AI application built with Flas
 - Text answers can be incoherent, factually incorrect, or incomplete. This is an experimental model, not a reliable source of information.
 - Video generation is experimental and may be unavailable until a compatible checkpoint is present. The video model is not generally prompt-conditioned; synthetic training clips use pan-and-zoom transformations of still images.
 - The voice path may use a speech model when installed and configured; otherwise it returns a synthetic tone. It must not be assumed to provide speech synthesis.
-- Training-data provenance, third-party dataset rights, checkpoint licenses, and the exact parameter counts of published weights have not been independently verified. Do not assume the repository's MIT license grants rights to model weights or generated output.
+- Training-data provenance, third-party dataset rights, checkpoint licenses, and the exact parameter counts of published weights have not been independently verified. No license for the repository source code is specified; do not assume that source-code terms grant rights to model weights or generated output.
 - API keys are shared secrets; per-user identity, persistent jobs, and distributed rate limiting are not implemented. See the [API guide](docs/API.md).
 
 ## Try it
@@ -177,6 +177,8 @@ Pull requests run CPU-capable unit tests, dependency auditing, secret scanning, 
 
 Configure the GitHub Actions secret `HF_TOKEN` for deployment and private staging readiness checks. Configure `SAINYX_API_KEY` separately in each Hugging Face Space for protected generation requests. The production Environment must have required reviewers configured; merely naming an Environment does not enable manual approval.
 
-## License
+## Author ✨
 
-Source code is licensed under the MIT License; see [LICENSE](LICENSE). Model weights and third-party training data may have separate terms and are not licensed by that statement.
+[](https://github.com/Ssaiyajin/careerops/tree/dev#author-)
+
+**Nihar Sawant** – DevOps & Software Engineer, interested in **automation, cloud, and machine learning**.

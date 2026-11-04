@@ -28,4 +28,4 @@ The model is not generally text-prompt-conditioned; prompts may be metadata or m
 
 ## Weights and license
 
-Checkpoint redistribution terms and the exact model license are unverified. The repository's MIT source-code license does not apply to the weights or source footage by implication.
+Checkpoint redistribution terms and the exact model license are unverified. No license for the repository source code is specified, and it should not be assumed to grant rights to the weights or source footage.
