@@ -1,0 +1,3 @@
+# CPU-compatible PyTorch pair; choose the platform-specific wheel index as shown in README.
+torch==2.14.1
+torchvision==0.29.2

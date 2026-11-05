@@ -22,6 +22,7 @@ def test_build_negative_prompt_contains_common_artifacts():
     assert "low quality" in lowered
 
 
-def test_generate_voice_audio_creates_wav_bytes():
+def test_generate_voice_audio_creates_wav_bytes(monkeypatch):
+    monkeypatch.setenv("SAINYX_VOICE_BACKEND", "tone")  # keep tests offline, no model download
     audio_bytes = generate_voice_audio("hello world", voice="neutral")
     assert audio_bytes.startswith(b"RIFF")

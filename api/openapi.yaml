@@ -3,9 +3,9 @@ info:
   title: Sainyx Generation API
   version: 1.0.0
   description: >-
-    Generate text, images, video preview frames, and voice-demo audio. Image prompts
-    are metadata only until a prompt-conditioned image model is deployed; voice output
-    is a tone demo and is not spoken text-to-speech.
+    Generate text, tag-conditioned images when a compatible checkpoint is loaded,
+    experimental video clips, and voice output. Video prompts are not generally
+    conditioned; voice may fall back to a synthetic tone.
 servers:
   - url: /api/v1
     description: Current Sainyx host
@@ -66,6 +66,14 @@ paths:
               schema:
                 type: string
                 format: binary
+            image/gif:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
         '202':
           description: Generation job queued
           content:
@@ -74,6 +82,12 @@ paths:
                 $ref: '#/components/schemas/QueuedJob'
         '400':
           description: Invalid request or unsupported option
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Prompt could not be resolved by a conditioned model
           content:
             application/json:
               schema:
@@ -96,6 +110,189 @@ paths:
             Retry-After:
               schema:
                 type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: API key is not configured or generator is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /chat:
+    post:
+      summary: Generate a text response
+      description: Alias for text generation; accepts message instead of prompt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Text generation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+        '202':
+          description: Generation job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueuedJob'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body exceeds the 64 KiB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Generation rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: API key is not configured or generator is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /image:
+    post:
+      summary: Generate an image
+      description: Alias for image generation; prompt must be supported by the loaded tag vocabulary.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageAliasRequest'
+      responses:
+        '200':
+          description: Image generation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '202':
+          description: Generation job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueuedJob'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body exceeds the 64 KiB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Prompt could not be resolved by the loaded image model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Generation rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: API key is not configured or generator is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /video:
+    post:
+      summary: Generate a video clip
+      description: Alias for short clip generation; prompt is accepted as metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoAliasRequest'
+      responses:
+        '200':
+          description: Clip generation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+            image/gif:
+              schema:
+                type: string
+                format: binary
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '202':
+          description: Generation job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueuedJob'
+        '413':
+          description: Request body exceeds the 64 KiB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Prompt could not be resolved by a conditioned model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Generation rate limit exceeded
           content:
             application/json:
               schema:
@@ -183,6 +380,84 @@ components:
         type: string
         format: uuid
   schemas:
+    ChatRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 80
+        seed:
+          $ref: '#/components/schemas/Seed'
+        response_format:
+          type: string
+          enum: [json]
+          default: json
+        async:
+          type: boolean
+          default: false
+    ImageAliasRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Prompt tags must be supported by the loaded image model.
+        num_images:
+          type: integer
+          minimum: 1
+          maximum: 4
+          default: 1
+        seed:
+          $ref: '#/components/schemas/Seed'
+        response_format:
+          type: string
+          enum: [json, binary]
+          default: json
+        async:
+          type: boolean
+          default: false
+    VideoAliasRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        prompt:
+          type: string
+          maxLength: 2000
+          description: Metadata only; the current video model is not prompt-conditioned.
+        seconds:
+          type: number
+          minimum: 1
+          maximum: 30
+          default: 4
+        resolution:
+          type: integer
+          minimum: 256
+          maximum: 2160
+          default: 1080
+        format:
+          type: string
+          enum: [gif, mp4]
+          default: gif
+        seed:
+          $ref: '#/components/schemas/Seed'
+        response_format:
+          type: string
+          enum: [json, binary]
+          default: json
+        async:
+          type: boolean
+          default: false
     TextRequest:
       type: object
       additionalProperties: false

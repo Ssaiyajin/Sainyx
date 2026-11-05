@@ -1,0 +1,13 @@
+name: Secret scanning
+description: Scan repository history for exposed secrets
+inputs:
+  github-token:
+    description: GitHub token used by the Gitleaks action
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Scan repository history
+      uses: gitleaks/gitleaks-action@v2.3.9
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}

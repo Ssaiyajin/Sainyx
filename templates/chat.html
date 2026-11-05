@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sainyx</title>
-    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/css/app.css?v=3">
 </head>
 <body>
 
@@ -41,7 +41,7 @@
             <div id="hud-core-text">SAINYX<br/>ACTIVE</div>
         </div>
         <div class="hud-data hud-data-1">SYS: ONLINE<br/>GPU: T4 x2<br/>PARAMS: 5.1M</div>
-        <div class="hud-data hud-data-2">LOSS: 0.38<br/>TOKEN: GEN<br/>MODEL: v2.0</div>
+        <div class="hud-data hud-data-2">LOSS: 0.38<br/>TOKEN: GEN<br/>MODE: ACTIVE</div>
         <div class="hud-data hud-data-3">LLM: ACTIVE<br/>DATA: READY<br/>ML: READY</div>
         <div class="hud-data hud-data-4">ATTN: 8 HEAD<br/>LAYERS: 6<br/>CTX: 128</div>
     </div>
@@ -55,7 +55,7 @@
         <div class="boot-line" id="bl3"><span class="tag">[MOD]</span> Data analysis module ready<span class="ok">OK</span></div>
         <div class="boot-line" id="bl4"><span class="tag">[MOD]</span> Data scientist module ready<span class="ok">OK</span></div>
         <div class="boot-line" id="bl5"><span class="tag">[GPU]</span> Tesla T4 x2 weights loaded<span class="ok">OK</span></div>
-        <div class="boot-line" id="bl6"><span class="tag">[SYS]</span> Sainyx v2.0 online<span class="ok">READY</span></div>
+        <div class="boot-line" id="bl6"><span class="tag">[SYS]</span> Sainyx online<span class="ok">READY</span></div>
     </div>
     <div id="boot-bar-wrap"><div id="boot-bar"></div></div>
     <div id="boot-ready">SYSTEM READY</div>
@@ -64,7 +64,6 @@
 <div id="app">
     <header>
         <div class="logo">SAINYX</div>
-        <div class="version">v2.0</div>
         <div class="status"><div class="status-dot"></div>Online</div>
     </header>
 
@@ -117,7 +116,7 @@ Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate
             <div class="api-guide-section">
                 <div class="api-guide-label">Available types</div>
                 <div class="api-types"><span>text</span><span>image</span><span>video</span><span>voice</span></div>
-                <div class="api-guide-note">Limits: 64 KiB/request and 60 requests/minute/IP. Image prompts are metadata only; video is one PNG frame; voice is a tone demo, not speech.</div>
+                <div class="api-guide-note">Limits: 64 KiB/request and 60 requests/minute/IP. Image prompts are metadata only; video is a short looping GIF; voice reads text aloud with Kokoro and falls back to a tone if it is unavailable.</div>
             </div>
         </div>
         <div id="roadmap-title" class="roadmap-card-title">🛣️ Roadmap</div>
@@ -140,19 +139,22 @@ Invoke-RestMethod -Method Post -Uri "https://your-space.hf.space/api/v1/generate
             <button id="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach file">📎</button>
             <input type="file" id="file-input" accept=".csv" onchange="handleAttach(this.files[0])">
             <textarea id="user-input" placeholder="Ask anything..." rows="1"></textarea>
-            <button id="send-btn" onclick="sendMessage()">
+            <button id="send-btn" onclick="sendMessage()" aria-describedby="response-status">
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
             </button>
         </div>
+        <div id="response-status" role="status" aria-live="polite" hidden>
+            Still working on your response. It will be available shortly.
+        </div>
         <div id="input-hint">Use 📎 to attach CSV · Switch modes above · Image Gen: describe what to create</div>
     </div>
 </div>
 
 <script src="/static/js/overlay.js"></script>
-<script src="/static/js/chat.js?v=5"></script>
+<script src="/static/js/chat.js?v=6"></script>
 <script src="/static/js/data.js"></script>
 <script src="/static/js/scientist.js"></script>
 <script src="/static/js/image.js?v=2"></script>

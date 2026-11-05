@@ -7,17 +7,18 @@ the same API version and response conventions.
 
 import base64
 import io
+import math
 import os
 import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
-from typing import Callable, Dict, NamedTuple, Tuple
+from typing import Callable, Dict, NamedTuple, Optional, Tuple
 
 from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
-from generation.audio.voice import generate_voice_audio
+from generation.audio.voice import generate_voice
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -33,6 +34,12 @@ MAX_REQUEST_BYTES = 64 * 1024
 MAX_GENERATION_REQUESTS_PER_MINUTE = 60
 MAX_PENDING_JOBS = 100
 JOB_TTL_SECONDS = 60 * 60
+GENERATION_ENDPOINTS = {
+    "api.generate",
+    "api.chat",
+    "api.image",
+    "api.video",
+}
 
 _job_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sainyx-api")
 _jobs = {}
@@ -103,7 +110,7 @@ def require_api_key(view_func: Callable) -> Callable:
         if not provided_key or provided_key != expected_key:
             return _error("unauthorized", "Missing or invalid X-API-Key header", 401)
 
-        if request.endpoint == "api.generate":
+        if request.endpoint in GENERATION_ENDPOINTS:
             limited = _check_generation_rate_limit()
             if limited:
                 return limited
@@ -163,6 +170,11 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
         return {"error": "image model is not available"}, 503
 
     from generation.image.generate import generate_images
+    from generation.image.tags import resolve_prompt
+
+    resolved = resolve_prompt(image_result["model"], prompt)
+    if resolved["error"]:
+        return {"error": resolved["error"], "unmatched_words": resolved["unmatched"]}, 422
 
     samples = generate_images(
         image_result["model"],
@@ -171,6 +183,7 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
         num_images=num_images,
         device=config.DEVICE,
         seed=seed,
+        tags=resolved["tags"],
     )
     image_bytes = []
     for sample in samples:
@@ -181,7 +194,9 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
     encoded_images = [base64.b64encode(item).decode("ascii") for item in image_bytes]
     payload = {
         "prompt": prompt,
-        "prompt_conditioned": False,
+        "prompt_conditioned": resolved["conditioned"],
+        "matched_tags": resolved["tags"],
+        "unmatched_words": resolved["unmatched"],
         "count": num_images,
         "seed": seed,
         "source": "sainyx-diffusion",
@@ -198,37 +213,57 @@ def _generate_image(body: dict) -> Tuple[dict, int]:
 
 def _generate_video(body: dict) -> Tuple[dict, int]:
     import config
-    from generation.video.render import generate_clip_gif
+    from generation.video.render import generate_video_bytes
 
     video_result = get_video_model()
     if video_result is None:
         return {"error": "video model is not available yet (still training)"}, 503
 
     seed = body.get("seed")
-    gif_bytes = generate_clip_gif(video_result, config.DEVICE, seed=seed)
+    seconds = max(1.0, min(float(body.get("seconds", 4)), 30.0))
+    fmt = "mp4" if body.get("format") == "mp4" else "gif"
+    resolution = max(256, min(int(body.get("resolution", 1080)), 2160))
+    first_frame = None
+    if getattr(video_result["model"], "cond_frame", False):
+        image_result = get_image_model()
+        if image_result is None:
+            return {"error": "image model is not available (needed for the first frame)"}, 503
+        from generation.video.first_frame import first_frame_from_prompt
+        first_frame, resolved = first_frame_from_prompt(
+            image_result["model"], image_result["image_size"], image_result["timesteps"],
+            body.get("prompt", ""), video_result["image_size"], config.DEVICE, seed=seed,
+        )
+        if resolved["error"]:
+            return {"error": resolved["error"], "unmatched_words": resolved["unmatched"]}, 422
+    media, fmt, n_frames = generate_video_bytes(
+        video_result, config.DEVICE, seconds=seconds, fps=16, seed=seed, steps=30, fmt=fmt, resolution=resolution,
+        first_frame=first_frame,
+    )
+    gif_bytes = media
     return {
-        "video_base64": base64.b64encode(gif_bytes).decode("ascii"),
-        "format": "gif",
-        "frames": video_result["clip_len"],
+        "video_base64": base64.b64encode(media).decode("ascii"),
+        "format": fmt,
+        "seconds": seconds,
+        "frames": n_frames,
         "seed": seed,
         "source": "sainyx-video",
         "_media_bytes": gif_bytes,
-        "_media_type": "image/gif",
-        "_filename": "sainyx-video.gif",
+        "_media_type": "video/mp4" if fmt == "mp4" else "image/gif",
+        "_filename": f"sainyx-video.{fmt}",
     }, 200
 
 
 def _generate_voice(body: dict) -> Tuple[dict, int]:
     text = body.get("text", body.get("prompt", "")).strip()
     voice = body.get("voice", "neutral").strip().lower() or "neutral"
-    audio = generate_voice_audio(text, voice=voice)
+    audio, backend = generate_voice(text, voice=voice)
     return {
         "text": text,
         "voice": voice,
-        "speech_synthesis": False,
+        "speech_synthesis": backend == "kokoro",
         "audio_base64": base64.b64encode(audio).decode("ascii"),
         "mime_type": "audio/wav",
-        "source": "sainyx-synthetic-voice",
+        "source": "sainyx-kokoro-voice" if backend == "kokoro" else "sainyx-synthetic-voice",
         "_media_bytes": audio,
         "_media_type": "audio/wav",
         "_filename": "sainyx-voice.wav",
@@ -265,7 +300,7 @@ def _validated_request(body: dict):
     allowed_fields = {
         "text": {"type", "prompt", "max_tokens", "seed", "response_format", "async"},
         "image": {"type", "prompt", "num_images", "seed", "response_format", "async"},
-        "video": {"type", "seed", "response_format", "async"},
+        "video": {"type", "prompt", "seed", "seconds", "format", "resolution", "response_format", "async"},
         "voice": {"type", "text", "prompt", "voice", "response_format", "async"},
     }[gen_type]
     unknown = sorted(set(body) - allowed_fields)
@@ -302,6 +337,30 @@ def _validated_request(body: dict):
             return None, _error("invalid_num_images", "num_images must be an integer from 1 to 4", 400)
         if response_format == "binary" and num_images != 1:
             return None, _error("binary_batch_not_supported", "Binary output requires num_images=1", 400)
+
+    if gen_type == "video":
+        seconds = body.get("seconds", 4)
+        if (
+            isinstance(seconds, bool)
+            or not isinstance(seconds, (int, float))
+            or not math.isfinite(seconds)
+            or not 1 <= seconds <= 30
+        ):
+            return None, _error("invalid_seconds", "seconds must be a number from 1 to 30", 400)
+        resolution = body.get("resolution", 1080)
+        if (
+            isinstance(resolution, bool)
+            or not isinstance(resolution, int)
+            or not 256 <= resolution <= 2160
+        ):
+            return None, _error("invalid_resolution", "resolution must be an integer from 256 to 2160", 400)
+        video_format = body.get("format", "gif")
+        if video_format not in ("gif", "mp4"):
+            return None, _error("invalid_format", "format must be 'gif' or 'mp4'", 400)
+        if "prompt" in body and (
+            not isinstance(body["prompt"], str) or len(body["prompt"].strip()) > 2000
+        ):
+            return None, _error("invalid_prompt", "prompt must be a string of at most 2000 characters", 400)
 
     if "seed" in body:
         seed = body["seed"]
@@ -353,6 +412,17 @@ def _run_job(app, job_id: str, gen_type: str, body: dict, entry: GenerationType)
     try:
         with _generation_lock:
             payload, status_code = entry.generate(body)
+        if status_code == 422:
+            with _jobs_lock:
+                job = _jobs.get(job_id)
+                if job is not None:
+                    job.update(
+                        status="failed",
+                        error={"code": "prompt_not_understood",
+                               "message": payload.get("error", "Prompt not understood.")},
+                        updated_at=time.time(),
+                    )
+            return
         if status_code != 200:
             raise RuntimeError("Generation is unavailable")
         with _jobs_lock:
@@ -418,15 +488,16 @@ def api_index():
         "version": "v1",
         "status_url": url_for("api.status"),
         "generate_url": url_for("api.generate"),
+        "chat_url": url_for("api.chat"),
+        "image_url": url_for("api.image"),
+        "video_url": url_for("api.video"),
         "openapi_url": url_for("api.openapi_document"),
         "job_status_url_template": url_for("api.job_status", job_id="{job_id}"),
         "job_result_url_template": url_for("api.job_result", job_id="{job_id}"),
     })
 
 
-@api.route("/generate", methods=["POST"])
-@require_api_key
-def generate():
+def _generate_request(gen_type: Optional[str] = None, prompt_alias: Optional[str] = None):
     if request.content_length is not None and request.content_length > MAX_REQUEST_BYTES:
         return _error("request_too_large", f"Request body must not exceed {MAX_REQUEST_BYTES} bytes", 413)
     if not request.is_json:
@@ -434,6 +505,18 @@ def generate():
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _error("invalid_json", "Request body must be a JSON object", 400)
+
+    if gen_type is not None:
+        body = dict(body)
+        if "type" in body and body["type"] != gen_type:
+            return _error("route_type_mismatch", f"This endpoint only accepts type '{gen_type}'", 400)
+        if prompt_alias is not None:
+            if prompt_alias not in body:
+                return _error("missing_prompt", f"{prompt_alias} is required", 400)
+            if "prompt" in body:
+                return _error("duplicate_prompt", f"Send either '{prompt_alias}' or 'prompt', not both", 400)
+            body["prompt"] = body.pop(prompt_alias)
+        body["type"] = gen_type
 
     validated, error_response = _validated_request(body)
     if error_response:
@@ -452,9 +535,39 @@ def generate():
     except Exception:
         current_app.logger.exception("API generation failed for type %s", gen_type)
         return _error("generation_failed", "Generation failed.", 500)
+    if status_code == 422:
+        return _error("prompt_not_understood", payload.get("error", "Prompt not understood."), 422,
+                      unmatched_words=payload.get("unmatched_words", []))
     if status_code != 200:
         return _error("generation_failed", payload.get("error", "Generation failed."), status_code)
     return _deliver_result(gen_type, payload, validated["response_format"])
+
+
+@api.route("/generate", methods=["POST"])
+@require_api_key
+def generate():
+    return _generate_request()
+
+
+@api.route("/chat", methods=["POST"])
+@require_api_key
+def chat():
+    """Generate a text response using the existing Sainyx text model."""
+    return _generate_request("text", prompt_alias="message")
+
+
+@api.route("/image", methods=["POST"])
+@require_api_key
+def image():
+    """Generate an image using the existing Sainyx image generator."""
+    return _generate_request("image")
+
+
+@api.route("/video", methods=["POST"])
+@require_api_key
+def video():
+    """Generate a video clip using the existing Sainyx video generator."""
+    return _generate_request("video")
 
 
 @api.route("/jobs/<job_id>", methods=["GET"])
@@ -498,6 +611,18 @@ def job_result(job_id: str):
     return _deliver_result(gen_type, payload, response_format)
 
 
+def _image_model_is_conditioned() -> bool:
+    """True only if an image model is already loaded and reads the prompt.
+    Looks at the cache and never triggers a model download."""
+    try:
+        from core.models.factory import ModelFactory
+    except ImportError:
+        return False
+
+    cached = ModelFactory._cache.get("image")
+    return bool(cached and getattr(cached["model"], "tag_vocab", None))
+
+
 @api.route("/status", methods=["GET"])
 def status():
     """Public capability check; does not require a generation API key."""
@@ -509,7 +634,7 @@ def status():
             "text": {"available": available["text"], "max_tokens": 500, "supports_seed": True},
             "image": {
                 "available": available["image"], "max_images": 4,
-                "supports_seed": True, "prompt_conditioned": False,
+                "supports_seed": True, "prompt_conditioned": _image_model_is_conditioned(),
             },
             "video": {
                 "available": available["video"], "supports_seed": True,

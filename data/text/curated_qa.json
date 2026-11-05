@@ -1,0 +1,181 @@
+{
+ "version": 1,
+ "note": "Short answers for names Wikipedia only covers as a section of a list page. Edit freely; hand-written pairs in build_qa.py take priority.",
+ "entries": [
+  {
+   "title": "Gogeta",
+   "aliases": [
+    "gogeta blue",
+    "super saiyan blue gogeta",
+    "ssj blue gogeta"
+   ],
+   "answer": "Gogeta is a fusion of Goku and Vegeta, created with the Fusion Dance. He first appeared in the 1995 film Dragon Ball Z: Fusion Reborn, where he defeats Janemba, and returned as Super Saiyan Blue Gogeta in Dragon Ball Super: Broly."
+  },
+  {
+   "title": "Vegito",
+   "aliases": [
+    "super saiyan blue vegito"
+   ],
+   "answer": "Vegito is the fusion of Goku and Vegeta using the Potara earrings. He first appears in Dragon Ball Z during the Majin Buu Saga, where he fights Super Buu."
+  },
+  {
+   "title": "Bulma",
+   "aliases": [],
+   "answer": "Bulma is a brilliant scientist and the heir to Capsule Corporation. She meets Goku at the start of Dragon Ball, travels with him to find the Dragon Balls, and later marries Vegeta. They have two children, Trunks and Bulla."
+  },
+  {
+   "title": "Trunks",
+   "aliases": [
+    "future trunks",
+    "mirai trunks"
+   ],
+   "answer": "Trunks is the son of Vegeta and Bulma. Future Trunks travels back in time from a ruined future to warn Goku about the Androids and Cell, while the younger Trunks grows up in the present and is Goten's best friend."
+  },
+  {
+   "title": "Piccolo",
+   "aliases": [],
+   "answer": "Piccolo is a Namekian who begins as Goku's enemy and later becomes a close ally. He trains Goku's son Gohan and is one of the Z Fighters."
+  },
+  {
+   "title": "Gohan",
+   "aliases": [
+    "son gohan"
+   ],
+   "answer": "Gohan is Goku's eldest son, a half-Saiyan raised by Chi-Chi. He is trained early on by Piccolo and becomes a Super Saiyan 2 during the Cell Games, where he defeats Cell."
+  },
+  {
+   "title": "Goten",
+   "aliases": [
+    "son goten"
+   ],
+   "answer": "Goten is Goku and Chi-Chi's younger son and Gohan's little brother. He is a half-Saiyan and best friends with Trunks; together they use the Fusion Dance to become Gotenks."
+  },
+  {
+   "title": "Chi-Chi",
+   "aliases": [
+    "chichi"
+   ],
+   "answer": "Chi-Chi is Goku's wife and the mother of Gohan and Goten. She is the daughter of the Ox-King and a skilled martial artist."
+  },
+  {
+   "title": "Krillin",
+   "aliases": [
+    "kuririn"
+   ],
+   "answer": "Krillin is a human martial artist and Goku's best friend. He trained with Goku under Master Roshi and later married Android 18; they have a daughter named Marron."
+  },
+  {
+   "title": "Master Roshi",
+   "aliases": [
+    "roshi",
+    "kame sennin",
+    "turtle hermit"
+   ],
+   "answer": "Master Roshi, also called the Turtle Hermit, is a martial arts master who trained Goku and Krillin. He lives on Kame House and is known for the Kamehameha wave."
+  },
+  {
+   "title": "Majin Buu",
+   "aliases": [
+    "buu",
+    "boo"
+   ],
+   "answer": "Majin Buu is a powerful magical being created by the wizard Bibidi. He is the main villain of the Majin Buu Saga in Dragon Ball Z and appears in several forms, including Super Buu and Kid Buu."
+  },
+  {
+   "title": "Beerus",
+   "aliases": [
+    "lord beerus",
+    "bills"
+   ],
+   "answer": "Beerus is the God of Destruction of Universe 7. He is a cat-like deity who loves food and sleeps for long periods, and he is served by his attendant Whis."
+  },
+  {
+   "title": "Whis",
+   "aliases": [],
+   "answer": "Whis is the angelic attendant of Beerus and also trains Goku and Vegeta in Dragon Ball Super. He is one of the strongest beings in the universe."
+  },
+  {
+   "title": "Android 17",
+   "aliases": [
+    "jinzo"
+   ],
+   "answer": "Android 17 is Android 18's twin brother, created by Dr. Gero. He later becomes a ranger who protects animals and fights for Universe 7 in the Tournament of Power."
+  },
+  {
+   "title": "Android 18",
+   "aliases": [
+    "lazuli"
+   ],
+   "answer": "Android 18 is a human turned android, created by Dr. Gero, and the twin sister of Android 17. She later marries Krillin and has a daughter, Marron."
+  },
+  {
+   "title": "Yamcha",
+   "aliases": [],
+   "answer": "Yamcha is a former desert bandit who becomes one of the Z Fighters. He is known for the Wolf Fang Fist and is Bulma's early love interest."
+  },
+  {
+   "title": "Tien Shinhan",
+   "aliases": [
+    "tien",
+    "tenshinhan"
+   ],
+   "answer": "Tien Shinhan is a three-eyed martial artist who starts as a rival of Goku and later becomes an ally. He is a close friend of Chiaotzu and uses the Tri-Beam."
+  },
+  {
+   "title": "Broly",
+   "aliases": [],
+   "answer": "Broly is a legendary Saiyan with enormous power. He appears in several Dragon Ball films, and in Dragon Ball Super: Broly (2018) he is reintroduced with a new backstory."
+  },
+  {
+   "title": "Mr. Satan",
+   "aliases": [
+    "hercule",
+    "hercule satan",
+    "mr satan"
+   ],
+   "answer": "Mr. Satan, called Hercule in some dubs, is the world martial arts champion who takes credit for defeating Cell. He is a comic-relief character who befriends Majin Buu."
+  },
+  {
+   "title": "Zamasu",
+   "aliases": [
+    "goku black",
+    "fused zamasu"
+   ],
+   "answer": "Zamasu is a Supreme Kai apprentice from Universe 10 and the main villain of the Future Trunks saga in Dragon Ball Super. He believes humans must be wiped out, and takes Goku's body as Goku Black."
+  },
+  {
+   "title": "Jiren",
+   "aliases": [],
+   "answer": "Jiren is the strongest warrior of Universe 11 and the main rival of Universe 7 in the Tournament of Power in Dragon Ball Super."
+  },
+  {
+   "title": "Dr. Gero",
+   "aliases": [
+    "doctor gero",
+    "dr gero"
+   ],
+   "answer": "Dr. Gero is a scientist of the Red Ribbon Army who turned himself and others into androids, creating Androids 17 and 18 to destroy Goku. His supercomputer later creates Cell."
+  },
+  {
+   "title": "Ultra Instinct",
+   "aliases": [
+    "mastered ultra instinct"
+   ],
+   "answer": "Ultra Instinct is a godly technique in Dragon Ball Super in which the body moves and dodges on its own. Goku masters it during the Tournament of Power."
+  },
+  {
+   "title": "Kamehameha",
+   "aliases": [
+    "kamehameha wave"
+   ],
+   "answer": "The Kamehameha is Master Roshi's signature energy wave. Goku learns it and makes it his own signature attack."
+  },
+  {
+   "title": "Bulla",
+   "aliases": [
+    "bra"
+   ],
+   "answer": "Bulla, called Bra in the Japanese version, is the daughter of Vegeta and Bulma and the younger sister of Trunks."
+  }
+ ]
+}

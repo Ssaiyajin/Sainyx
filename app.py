@@ -6,11 +6,12 @@ routes share the same cached checkpoints instead of allocating duplicates.
 
 import os
 import io
+import time
 import base64
 
 import pandas as pd
 import torch
-from generation.video.render import generate_clip_gif
+from generation.video.render import generate_video_bytes
 from torchvision.utils import save_image
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
@@ -19,8 +20,10 @@ from generation.data_analysis.analyzer import analyze_csv, generate_charts, summ
 from generation.data_analysis.pdf_export import generate_pdf
 from generation.data_analysis.scientist import train_model
 from generation.image.generate import generate_images
-from generation.audio.voice import generate_voice_audio
+from generation.image.tags import resolve_prompt
+from generation.audio.voice import generate_voice as synthesize_voice, warm_up as warm_up_voice
 from api.api import api
+from generation.text.retrieval import get_default_store, smalltalk
 from core.models.factory import get_image_model, get_text_model, get_video_model
 
 import config
@@ -59,6 +62,14 @@ diffusion_timesteps = image_result['timesteps'] if image_result else config.IMAG
 
 video_result = get_video_model()
 
+# Text chat answers come from stored text first (see generation/text/retrieval.py).
+qa_store = get_default_store()
+TEXT_FALLBACK = os.environ.get('SAINYX_TEXT_FALLBACK', 'decline').lower()
+TEXT_DECLINE_MESSAGE = (
+    "I don't have a reliable answer for that. I can answer questions about Dragon Ball, anime and the games "
+    "I was trained on, so try asking about a character, series or game by name."
+)
+
 
 # ── Flask app ──────────────────────────────────────
 app = Flask(__name__)
@@ -71,31 +82,68 @@ def home():
     return render_template('chat.html')
 
 
+def _sse(text):
+    return f"data: {text.replace(chr(10), ' ')}\n\n"
+
+
+def _stream_text(text, chunk=4, delay=0.012):
+    """Send a finished answer a few characters at a time so the UI keeps its typing effect."""
+    for i in range(0, len(text), chunk):
+        yield _sse(text[i:i + chunk])
+        time.sleep(delay)
+    yield "data: [DONE]\n\n"
+
+
+def _model_answer(user_input):
+    """Last-resort answer from the 57M model: full context window, low temperature, stops at the answer's end."""
+    prompt = f"Question: {user_input}\nAnswer:"
+    idx = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
+    text = ""
+    with torch.no_grad():
+        for _ in range(260):
+            logits, _ = model(idx[:, -model.block_size:])
+            logits = logits[:, -1, :] / 0.2
+            top = torch.topk(logits, 10)[0]
+            logits[logits < top[:, [-1]]] = -float('inf')
+            next_token = torch.multinomial(torch.nn.functional.softmax(logits, dim=-1), num_samples=1)
+            idx = torch.cat((idx, next_token), dim=1)
+            text += itos.get(next_token.item(), '?')
+            if '\n\n' in text or 'Question:' in text:
+                break
+    return text.split('\n\n')[0].split('Question:')[0].strip()
+
+
 @app.route('/chat', methods=['POST'])
 def chat():
-    user_input = request.json.get('message', '').strip()
+    user_input = (request.get_json(silent=True) or {}).get('message', '').strip()
     if not user_input:
         return jsonify({'response': '...'})
 
-    prompt = f"Question: {user_input}\nAnswer:"
-    context = torch.tensor(encode(prompt), dtype=torch.long).unsqueeze(0).to(device)
+    # 1. Greetings, thanks and "what can you do" get a fixed reply.
+    reply = smalltalk(user_input, qa_store)
+    pair = None if reply else qa_store.compare(user_input)
+    hit = None if (reply or pair) else qa_store.answer(user_input)
 
-    def generate_stream():
-        with torch.no_grad():
-            idx = context.clone()
-            for _ in range(80):
-                idx_cond = idx[:, -32:]
-                logits, _ = model(idx_cond)
-                logits = logits[:, -1, :]
-                probs = torch.nn.functional.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-                idx = torch.cat((idx, next_token), dim=1)
-                char = itos.get(next_token.item(), '?')
-                yield f"data: {char}\n\n"
-        yield "data: [DONE]\n\n"
+    # 2. Answer from stored Wikipedia / hand-written text when we can match the question.
+    if reply:
+        pass
+    elif pair:
+        reply = f"{pair[0].matched}: {pair[0].text} {pair[1].matched}: {pair[1].text}"
+    elif hit is not None:
+        reply = hit.text
+        if hit.corrected:
+            reply = f"Showing results for {hit.matched}. {reply}"
+    # 3. Otherwise either say so (default) or let the small model try (SAINYX_TEXT_FALLBACK=model).
+    elif TEXT_FALLBACK == 'model':
+        reply = _model_answer(user_input) or TEXT_DECLINE_MESSAGE
+    else:
+        near = qa_store.suggest(user_input)
+        reply = TEXT_DECLINE_MESSAGE
+        if near:
+            reply += " Did you mean " + (", ".join(near[:-1]) + " or " + near[-1] if len(near) > 1 else near[0]) + "?"
 
     return Response(
-        stream_with_context(generate_stream()),
+        stream_with_context(_stream_text(reply)),
         mimetype='text/event-stream'
     )
 
@@ -195,15 +243,24 @@ def generate_image():
     if diffusion_model is None:
         return jsonify({'error': 'Sainyx image model is not available. Add the image checkpoint and restart the Space.'}), 503
 
+    resolved = resolve_prompt(diffusion_model, prompt)
+    if resolved['error']:
+        return jsonify({'error': resolved['error'], 'unmatched_words': resolved['unmatched']}), 422
+
     try:
         samples = generate_images(
             diffusion_model, image_size=diffusion_image_size,
-            timesteps=diffusion_timesteps, num_images=1, device=device
+            timesteps=diffusion_timesteps, num_images=1, device=device,
+            tags=resolved['tags']
         )
         buffer = io.BytesIO()
         save_image(samples, buffer, format='PNG')
         img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        return jsonify({'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion'})
+        return jsonify({
+            'image': img_b64, 'prompt': prompt, 'source': 'sainyx-diffusion',
+            'prompt_conditioned': resolved['conditioned'],
+            'matched_tags': resolved['tags'], 'unmatched_words': resolved['unmatched'],
+        })
     except Exception as e:
         return jsonify({'error': f'Sainyx model generation failed: {e}'}), 500
 
@@ -213,9 +270,29 @@ def generate_video():
         return jsonify({'error': 'Video model not available yet — no checkpoint pushed from Kaggle.'})
 
     try:
-        gif_bytes = generate_clip_gif(video_result, device)
-        gif_b64 = base64.b64encode(gif_bytes).decode('utf-8')
-        return jsonify({'gif': gif_b64, 'frames': video_result['clip_len'], 'source': 'sainyx-video'})
+        body = request.get_json(silent=True) or {}
+        seconds = max(1.0, min(float(body.get('seconds', 4)), 8.0))  # web cap; use the CLI for minutes
+        first_frame = None
+        if getattr(video_result['model'], 'cond_frame', False):
+            if diffusion_model is None:
+                return jsonify({'error': 'This video model animates an image, and the image model is not available.'}), 503
+            from generation.video.first_frame import first_frame_from_prompt
+            first_frame, resolved = first_frame_from_prompt(
+                diffusion_model, diffusion_image_size, diffusion_timesteps,
+                body.get('prompt', ''), video_result['image_size'], device,
+            )
+            if resolved['error']:
+                return jsonify({'error': resolved['error'], 'unmatched_words': resolved['unmatched']}), 422
+        media, fmt, n_frames = generate_video_bytes(
+            video_result, device, seconds=seconds, fps=16, steps=30, fmt='mp4',
+            first_frame=first_frame, resolution=1080,
+        )
+        media_b64 = base64.b64encode(media).decode('utf-8')
+        payload = {'media': media_b64, 'format': fmt, 'frames': n_frames,
+                   'seconds': seconds, 'source': 'sainyx-video'}
+        if fmt == 'gif':
+            payload['gif'] = media_b64          # old clients read this key
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'error': f'Video generation failed: {e}'})
 
@@ -231,14 +308,14 @@ def generate_voice():
     if not isinstance(voice, str):
         return jsonify({'error': 'Voice must be a string'}), 400
 
-    audio = generate_voice_audio(text.strip(), voice=voice.strip() or 'neutral')
+    audio, backend = synthesize_voice(text.strip(), voice=voice.strip() or 'neutral')
     return jsonify({
         'status': 'ready',
         'text': text.strip(),
         'voice': voice.strip() or 'neutral',
         'audio_base64': base64.b64encode(audio).decode('ascii'),
         'mime_type': 'audio/wav',
-        'source': 'sainyx-synthetic-voice'
+        'source': 'sainyx-kokoro-voice' if backend == 'kokoro' else 'sainyx-synthetic-voice'
     })
 
 
@@ -263,4 +340,5 @@ def feature_status():
     })
 
 
+warm_up_voice()
 app.run(host='0.0.0.0', port=7860, debug=False)

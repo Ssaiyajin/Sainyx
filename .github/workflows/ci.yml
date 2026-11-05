@@ -1,0 +1,56 @@
+name: Pre-deployment validation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - Dev
+
+permissions:
+  contents: read
+
+jobs:
+  python-dependency-audit:
+    name: Python dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Audit Python dependencies
+        uses: ./.github/actions/python-dependency-audit
+
+  secret-scan:
+    name: Secret scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: ./.github/actions/secret-scan
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  filesystem-scan:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan filesystem
+        uses: ./.github/actions/trivy-filesystem-scan
+
+  tests:
+    name: CPU unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        uses: ./.github/actions/cpu-unit-tests
